@@ -1,5 +1,4 @@
 pub struct Board<const N: usize> {
-    init_state: [[u8; N]; N],
     cur_state: [[u8; N]; N],
     moves: Vec<String>,
     initialised: bool
@@ -12,7 +11,6 @@ trait EightQueen {
 impl EightQueen for Board<8> {
     fn new() -> Board<8> {
         Board {
-            init_state: [[0; 8]; 8],
             cur_state: [[0; 8]; 8],
             moves: Vec::with_capacity(8),
             initialised: false
@@ -23,7 +21,6 @@ impl EightQueen for Board<8> {
 impl<const N: usize> Board<N> {
     pub fn new() -> Board<N> {
         Board {
-            init_state: [[0; N]; N],
             cur_state: [[0; N]; N],
             moves: Vec::with_capacity(N),
             initialised: false
@@ -53,14 +50,10 @@ impl<const N: usize> Board<N> {
         while idx < N*3-1 {
             let file = csv_bytes[idx]-b'a';
             let rank = csv_bytes[idx+1]-b'1'; // TODO: when N > 9
-            self.init_state[rank as usize][file as usize] = 1;
+            self.cur_state[rank as usize][file as usize] = 1;
             idx += 3; // Skips a comma too.
         }
         self.initialised = true;
-
-        unsafe {
-            std::intrinsics::copy_nonoverlapping(&self.init_state, &mut self.cur_state, self.init_state.len());
-        }
     }
     #[inline(always)]
     pub unsafe fn fast_init_fen(&mut self, fen_data: &str) {
@@ -214,6 +207,7 @@ impl<const N: usize> Board<N> {
         }
         true
     }
+    #[allow(dead_code)]
     pub fn validate_game(&self) -> bool {
         let mut queens_pos = Vec::with_capacity(N);
 
@@ -340,20 +334,10 @@ impl<const N: usize> Board<N> {
         // Guaranteed to be valid UTF-8, since only ASCII characters are being applied.
         return unsafe { String::from_utf8_unchecked(layout) };
     }
-    pub fn to_string_debug(&self) -> String {
-        let mut data = self.to_string();
-        todo!()
-    }
 }
 
 impl<const N: usize> std::fmt::Display for Board<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
-    }
-}
-
-impl<const N: usize> std::fmt::Debug for Board<N> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string_debug())
     }
 }
