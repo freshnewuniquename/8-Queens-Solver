@@ -1,20 +1,59 @@
 pub struct Board<const N: usize> {
     cur_state: [[u8; N]; N],
+    goal_state: [[u8; N]; N],
     moves: Vec<String>,
-    initialised: bool
+    init_initialised: bool,
+    goal_initialised: bool
 }
 
-trait EightQueen {
+pub trait EightQueen {
     fn new() -> Board<8>;
+    fn create(csv_init_data: &str) -> Board<8>;
+    fn init(&mut self, csv_init_data: &str);
+    fn fast_init(&mut self, csv_init_data: &str);
 }
 
 impl EightQueen for Board<8> {
     fn new() -> Board<8> {
         Board {
             cur_state: [[0; 8]; 8],
+            goal_state: [[0,1,0,0,0,0,0,0],[0,0,0,0,1,0,0,0],[0,0,0,0,0,0,1,0],[0,0,0,1,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1],[0,0,0,0,0,1,0,0],[0,0,1,0,0,0,0,0]],
             moves: Vec::with_capacity(8),
-            initialised: false
+            init_initialised: false,
+            goal_initialised: true
         }
+    }
+    fn create(csv_init_data: &str) -> Board<8> {
+        let mut board = Board::new();
+        #[cfg(debug_assertions)]
+        {
+            EightQueen::init(&mut board, csv_init_data);
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            EightQueen::fast_init(&mut board, csv_init_data);
+        }
+        board
+    }
+    fn init(&mut self, csv_init_data: &str) {
+        EightQueen::fast_init(self, csv_init_data);
+    }
+    #[inline(always)]
+    fn fast_init(&mut self, csv_init_data: &str) {
+        let insert_data = |csv_data: &str, dest: &mut [[u8; 8]; 8]| {
+            let csv_bytes = csv_data.as_bytes();
+            let mut idx = 0;
+            
+            while idx < 8*3-1 {
+                let file = csv_bytes[idx]-b'a';
+                let rank = csv_bytes[idx+1]-b'1'; // TODO: when N > 9
+                dest[rank as usize][file as usize] = 1;
+                idx += 3; // Skips a comma too.
+            }
+        };
+        
+        insert_data(csv_init_data, &mut self.cur_state);
+        self.init_initialised = true;
     }
 }
 
@@ -22,38 +61,46 @@ impl<const N: usize> Board<N> {
     pub fn new() -> Board<N> {
         Board {
             cur_state: [[0; N]; N],
+            goal_state: [[0; N]; N],
             moves: Vec::with_capacity(N),
-            initialised: false
+            init_initialised: false,
+            goal_initialised: false
         }
     }
-    pub fn create(csv_data: &str) -> Board<N> {
+    pub fn create(csv_init_data: &str, csv_goal_data: &str) -> Board<N> {
         let mut board = Board::new();
         #[cfg(debug_assertions)]
         {
-            board.init(csv_data);
+            board.init(csv_init_data, csv_goal_data);
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_init(csv_data);
+            board.fast_init(csv_init_data, csv_goal_data);
         }
-        return board;
+        board
     }
-    pub fn init(&mut self, csv_data: &str) {
-        self.fast_init(csv_data);
-        return;
+    pub fn init(&mut self, csv_init_data: &str, csv_goal_data: &str) {
+        self.fast_init(csv_init_data, csv_goal_data);
     }
     #[inline(always)]
-    pub fn fast_init(&mut self, csv_data: &str) {
-        let mut idx = 0;
-        let csv_bytes = csv_data.as_bytes();
-
-        while idx < N*3-1 {
-            let file = csv_bytes[idx]-b'a';
-            let rank = csv_bytes[idx+1]-b'1'; // TODO: when N > 9
-            self.cur_state[rank as usize][file as usize] = 1;
-            idx += 3; // Skips a comma too.
-        }
-        self.initialised = true;
+    pub fn fast_init(&mut self, csv_init_data: &str, csv_goal_data: &str) {
+        let insert_data = |csv_data: &str, dest: &mut [[u8; N]; N]| {
+            let csv_bytes = csv_data.as_bytes();
+            let mut idx = 0;
+            
+            while idx < N*3-1 {
+                let file = csv_bytes[idx]-b'a';
+                let rank = csv_bytes[idx+1]-b'1'; // TODO: when N > 9
+                dest[rank as usize][file as usize] = 1;
+                idx += 3; // Skips a comma too.
+            }
+        };
+        
+        insert_data(csv_init_data, &mut self.cur_state);
+        self.init_initialised = true;
+        
+        insert_data(csv_goal_data, &mut self.goal_state);
+        self.goal_initialised = true;
     }
     #[inline(always)]
     pub unsafe fn fast_init_fen(&mut self, fen_data: &str) {
