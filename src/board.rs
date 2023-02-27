@@ -1,7 +1,6 @@
 pub struct Board<const N: usize> {
     cur_state: [[u8; N]; N],
     moves: Vec<String>,
-    initialised: bool
 }
 
 trait EightQueen {
@@ -13,37 +12,36 @@ impl EightQueen for Board<8> {
         Board {
             cur_state: [[0; 8]; 8],
             moves: Vec::with_capacity(8),
-            initialised: false
         }
     }
 }
 
 impl<const N: usize> Board<N> {
-    pub fn new() -> Board<N> {
-        Board {
+    #[must_use]
+    /// The constructor for the Board struct.
+    pub fn new(csv_data: &str) -> Board<N> {
+        let mut board = Board {
             cur_state: [[0; N]; N],
-            moves: Vec::with_capacity(N),
-            initialised: false
-        }
-    }
-    pub fn create(csv_data: &str) -> Board<N> {
-        let mut board = Board::new();
+            moves: Vec::with_capacity(N)
+        };
+        
         #[cfg(debug_assertions)]
         {
-            board.init(csv_data);
+            board.set_with_csv(csv_data);
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_init(csv_data);
+            board.fast_set_with_csv(csv_data);
         }
         return board;
     }
-    pub fn init(&mut self, csv_data: &str) {
-        self.fast_init(csv_data);
-        return;
+    pub fn set_with_csv(&mut self, csv_data: &str) -> Result<(), ()> {
+        // TODO: implement the safe version.
+        self.fast_set_with_csv(csv_data);
+        Ok(())
     }
     #[inline(always)]
-    pub fn fast_init(&mut self, csv_data: &str) {
+    pub fn fast_set_with_csv(&mut self, csv_data: &str) {
         let mut idx = 0;
         let csv_bytes = csv_data.as_bytes();
 
@@ -53,10 +51,12 @@ impl<const N: usize> Board<N> {
             self.cur_state[rank as usize][file as usize] = 1;
             idx += 3; // Skips a comma too.
         }
-        self.initialised = true;
+    }
+    pub fn set_with_fen(&mut self, fen_data: &str) -> Result<(), ()> {
+        todo!()
     }
     #[inline(always)]
-    pub unsafe fn fast_init_fen(&mut self, fen_data: &str) {
+    pub unsafe fn fast_set_with_fen(&mut self, fen_data: &str) {
         let mut raw_cur_state: *mut u8 = &mut self.cur_state[0][0];
         let fen_data = fen_data.as_bytes();
 
@@ -73,7 +73,7 @@ impl<const N: usize> Board<N> {
                 // 9 - 0b0011_1001
                 //   - 0b0010_0000
                 // Q - 0b0101_0001
-                while fen_data[idx+1] ^ 0x30 == 0 {
+                while fen_data[idx+1] ^ 0x30 > 0x10 {
                     n *= 10;
                     idx += 1;
                     n += fen_data[idx] - b'0';
@@ -82,7 +82,16 @@ impl<const N: usize> Board<N> {
             }
         } 
     }
-    pub fn move_piece(&mut self, src: &str, dest: &str) {
+    /// Moves the selected chess piece to the given location, from the given chess coordinates notations.
+    ///
+    /// NOTE: This function does not check for the move validity, and will just move them regardless.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// move_piece_with_coords("a2", "a4");
+    /// ```
+    fn move_piece_with_coords(&mut self, src: &str, dest: &str) {
         let src = src.as_bytes();
         let dest = dest.as_bytes();
 
@@ -97,8 +106,6 @@ impl<const N: usize> Board<N> {
         }
     }
     /// Returns an N-array of a row and column tuple of the queens position on the board. 
-    ///
-    /// 
     fn get_queens_pos(map: [[u8; N]; N]) -> [(u8, u8); N] {
         let mut queens_pos = [(0, 0); N];
         let mut idx = 0;
@@ -122,7 +129,7 @@ impl<const N: usize> Board<N> {
         let mut stack = Vec::with_capacity(64);
 
         let map = Board::get_queens_pos(self.cur_state);
-        if Self::validate_map_list(&map) {
+        if Self::validate_list(&map) {
             return 0;
         }
         
@@ -146,7 +153,7 @@ impl<const N: usize> Board<N> {
                         new_map[queen_i].0 = row_i;
                         row_i += 1;
 
-                        if Self::validate_map_list(&new_map) {
+                        if Self::validate_list(&new_map) {
                             lowest_solve = n+1;
                             lowest_solve_map = new_map;
                             continue 'main;
@@ -171,7 +178,7 @@ impl<const N: usize> Board<N> {
         lowest_solve
     }
     #[inline(always)]
-    fn validate_map_list(queens_pos: &[(u8, u8); N]) -> bool {
+    fn validate_list(queens_pos: &[(u8, u8); N]) -> bool {
         let mut row_lookup = [false; N];
         for x in queens_pos {
             unsafe {
