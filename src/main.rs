@@ -32,7 +32,7 @@ fn main() {
     if cli_options.len() <= 1 {
         // interactive_menu();
         read_file_to("src/init", &mut file_data);
-        let mut board = <board::Board::<8> as board::EightQueen>::create(unsafe { std::str::from_utf8_unchecked(&file_data) });
+        let mut board = <board::Board::<8> as board::EightQueen>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
         loop {
             println!("{board}");
             println!("moves: {}", board.solve());
@@ -53,8 +53,8 @@ fn main() {
                 if !read_file_to(file_name, &mut file_data) {
                     continue;
                 }
-                // let board = board::Board::<8>::create(unsafe { std::str::from_utf8_unchecked(&file_data) });
-                // println!("{board}");
+                let mut board = <board::Board::<8> as board::EightQueen>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+                println!("{board}");
             } else {
                 println!("\"{}\" is not a valid file name. File ignored, proceeding...", option.to_string_lossy());
             }

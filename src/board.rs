@@ -2,44 +2,37 @@ pub struct Board<const N: usize> {
     cur_state: [[u8; N]; N],
     goal_state: [[u8; N]; N],
     moves: Vec<String>,
-    init_initialised: bool,
-    goal_initialised: bool
 }
 
 pub trait EightQueen {
-    fn new() -> Board<8>;
-    fn create(csv_init_data: &str) -> Board<8>;
-    fn init(&mut self, csv_init_data: &str);
-    fn fast_init(&mut self, csv_init_data: &str);
+    fn new(csv_set_data: &str) -> Board<8>;
+    fn set_with_csv(&mut self, csv_set_data: &str);
+    fn fast_set_with_csv(&mut self, csv_set_data: &str);
 }
 
 impl EightQueen for Board<8> {
-    fn new() -> Board<8> {
-        Board {
+    fn new(csv_set_data: &str) -> Board<8> {
+        let mut board = Board {
             cur_state: [[0; 8]; 8],
             goal_state: [[0,1,0,0,0,0,0,0],[0,0,0,0,1,0,0,0],[0,0,0,0,0,0,1,0],[0,0,0,1,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1],[0,0,0,0,0,1,0,0],[0,0,1,0,0,0,0,0]],
             moves: Vec::with_capacity(8),
-            init_initialised: false,
-            goal_initialised: true
-        }
-    }
-    fn create(csv_init_data: &str) -> Board<8> {
-        let mut board = Board::new();
+        };
+
         #[cfg(debug_assertions)]
         {
-            EightQueen::init(&mut board, csv_init_data);
+            EightQueen::set_with_csv(&mut board, csv_set_data);
         }
         #[cfg(not(debug_assertions))]
         {
-            EightQueen::fast_init(&mut board, csv_init_data);
+            EightQueen::fast_set_with_csv(&mut board, csv_set_data);
         }
         board
     }
-    fn init(&mut self, csv_init_data: &str) {
-        EightQueen::fast_init(self, csv_init_data);
+    fn set_with_csv(&mut self, csv_set_data: &str) {
+        EightQueen::fast_set_with_csv(self, csv_set_data);
     }
     #[inline(always)]
-    fn fast_init(&mut self, csv_init_data: &str) {
+    fn fast_set_with_csv(&mut self, csv_set_data: &str) {
         let insert_data = |csv_data: &str, dest: &mut [[u8; 8]; 8]| {
             let csv_bytes = csv_data.as_bytes();
             let mut idx = 0;
@@ -52,43 +45,42 @@ impl EightQueen for Board<8> {
             }
         };
         
-        insert_data(csv_init_data, &mut self.cur_state);
-        self.init_initialised = true;
+        insert_data(csv_set_data, &mut self.cur_state);
     }
 }
 
 impl<const N: usize> Board<N> {
-    pub fn new() -> Board<N> {
-        Board {
+    #[must_use]
+    /// The constructor for the Board struct.
+    pub fn new(csv_set_data: &str, csv_goal_data: &str) -> Board<N> {
+        let mut board = Board {
             cur_state: [[0; N]; N],
             goal_state: [[0; N]; N],
-            moves: Vec::with_capacity(N),
-            init_initialised: false,
-            goal_initialised: false
-        }
-    }
-    pub fn create(csv_init_data: &str, csv_goal_data: &str) -> Board<N> {
-        let mut board = Board::new();
+            moves: Vec::with_capacity(N)
+        };
+        
         #[cfg(debug_assertions)]
         {
-            board.init(csv_init_data, csv_goal_data);
+            board.set_with_csv(csv_set_data, csv_goal_data);
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_init(csv_init_data, csv_goal_data);
+            board.fast_set_with_csv(csv_set_data, csv_goal_data);
         }
         board
     }
-    pub fn init(&mut self, csv_init_data: &str, csv_goal_data: &str) {
-        self.fast_init(csv_init_data, csv_goal_data);
+    pub fn set_with_csv(&mut self, csv_set_data: &str, csv_goal_data: &str) -> Result<(), ()> {
+        // TODO: implement the safe version.
+        self.fast_set_with_csv(csv_set_data, csv_goal_data);
+        Ok(())
     }
     #[inline(always)]
-    pub fn fast_init(&mut self, csv_init_data: &str, csv_goal_data: &str) {
+    pub fn fast_set_with_csv(&mut self, csv_set_data: &str, csv_goal_data: &str) {
         let insert_data = |csv_data: &str, dest: &mut [[u8; N]; N]| {
             let csv_bytes = csv_data.as_bytes();
             let mut idx = 0;
             
-            while idx < N*3-1 {
+            while idx < 8*3-1 {
                 let file = csv_bytes[idx]-b'a';
                 let rank = csv_bytes[idx+1]-b'1'; // TODO: when N > 9
                 dest[rank as usize][file as usize] = 1;
@@ -96,14 +88,14 @@ impl<const N: usize> Board<N> {
             }
         };
         
-        insert_data(csv_init_data, &mut self.cur_state);
-        self.init_initialised = true;
-        
-        insert_data(csv_goal_data, &mut self.goal_state);
-        self.goal_initialised = true;
+        insert_data(csv_set_data, &mut self.cur_state);
+        insert_data(csv_goal_data, &mut self.cur_state);
+    }
+    pub fn set_with_fen(&mut self, fen_data: &str) -> Result<(), ()> {
+        todo!()
     }
     #[inline(always)]
-    pub unsafe fn fast_init_fen(&mut self, fen_data: &str) {
+    pub unsafe fn fast_set_with_fen(&mut self, fen_data: &str) {
         let mut raw_cur_state: *mut u8 = &mut self.cur_state[0][0];
         let fen_data = fen_data.as_bytes();
 
@@ -120,7 +112,7 @@ impl<const N: usize> Board<N> {
                 // 9 - 0b0011_1001
                 //   - 0b0010_0000
                 // Q - 0b0101_0001
-                while fen_data[idx+1] ^ 0x30 == 0 {
+                while fen_data[idx+1] ^ 0x30 > 0x10 {
                     n *= 10;
                     idx += 1;
                     n += fen_data[idx] - b'0';
@@ -129,7 +121,16 @@ impl<const N: usize> Board<N> {
             }
         } 
     }
-    pub fn move_piece(&mut self, src: &str, dest: &str) {
+    /// Moves the selected chess piece to the given location, from the given chess coordinates notations.
+    ///
+    /// NOTE: This function does not check for the move validity, and will just move them regardless.
+    ///
+    /// # Examples:
+    /// Basic usage:
+    /// ```
+    /// move_piece_with_coords("a2", "a4");
+    /// ```
+    fn move_piece_with_coords(&mut self, src: &str, dest: &str) {
         let src = src.as_bytes();
         let dest = dest.as_bytes();
 
@@ -144,8 +145,6 @@ impl<const N: usize> Board<N> {
         }
     }
     /// Returns an N-array of a row and column tuple of the queens position on the board. 
-    ///
-    /// 
     fn get_queens_pos(map: [[u8; N]; N]) -> [(u8, u8); N] {
         let mut queens_pos = [(0, 0); N];
         let mut idx = 0;
@@ -169,7 +168,7 @@ impl<const N: usize> Board<N> {
         let mut stack = Vec::with_capacity(64);
 
         let map = Board::get_queens_pos(self.cur_state);
-        if Self::validate_map_list(&map) {
+        if Self::validate_list(&map) {
             return 0;
         }
         
@@ -193,7 +192,7 @@ impl<const N: usize> Board<N> {
                         new_map[queen_i].0 = row_i;
                         row_i += 1;
 
-                        if Self::validate_map_list(&new_map) {
+                        if Self::validate_list(&new_map) {
                             lowest_solve = n+1;
                             lowest_solve_map = new_map;
                             continue 'main;
@@ -218,7 +217,7 @@ impl<const N: usize> Board<N> {
         lowest_solve
     }
     #[inline(always)]
-    fn validate_map_list(queens_pos: &[(u8, u8); N]) -> bool {
+    fn validate_list(queens_pos: &[(u8, u8); N]) -> bool {
         let mut row_lookup = [false; N];
         for x in queens_pos {
             unsafe {
