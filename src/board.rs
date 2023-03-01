@@ -4,18 +4,29 @@ pub struct Board<const N: usize> {
 }
 
 trait EightQueen {
-    fn new() -> Board<8>;
+    fn new(csv_data: &str) -> Board<8>;
 }
 
 impl EightQueen for Board<8> {
-    fn new() -> Board<8> {
-        Board {
+    fn new(csv_data: &str) -> Board<8> {
+        let mut board = Board {
             cur_state: [[0; 8]; 8],
-            moves: Vec::with_capacity(8),
+            moves: Vec::with_capacity(8)
+        };
+        
+        #[cfg(debug_assertions)]
+        {
+            board.set_with_csv(csv_data).unwrap();
         }
+        #[cfg(not(debug_assertions))]
+        {
+            board.fast_set_with_csv(csv_data);
+        }
+        return board;
     }
 }
 
+#[allow(dead_code)]
 impl<const N: usize> Board<N> {
     #[must_use]
     /// The constructor for the Board struct.
@@ -27,7 +38,7 @@ impl<const N: usize> Board<N> {
         
         #[cfg(debug_assertions)]
         {
-            board.set_with_csv(csv_data);
+            board.set_with_csv(csv_data).unwrap();
         }
         #[cfg(not(debug_assertions))]
         {
@@ -132,11 +143,12 @@ impl<const N: usize> Board<N> {
         if Self::validate_list(&map) {
             return 0;
         }
-        
-        stack.push((0, map, 0));
-        
+
         let mut lowest_solve = u16::MAX;
         let mut lowest_solve_map = [(u8::MAX, u8::MAX); N];
+
+        // The search does not start at column 1 because it will result in an 18x slowdown lol.
+        stack.push((0, map, 0));
         
         'main: while let Some((idx, map, n)) = stack.pop() {
             if n >= lowest_solve {
@@ -144,25 +156,24 @@ impl<const N: usize> Board<N> {
                 continue;
             }
 
-            for queen_i in idx..N {
-                if queen_i != idx {
-                    let mut row_i = 0;
-                    
-                    while row_i < N as u8 {
-                        let mut new_map = map.clone();
-                        new_map[queen_i].0 = row_i;
-                        row_i += 1;
+            for queen_i in idx+1..N {
+                let mut row_i = 0;
+                
+                while row_i < N as u8 {
+                    let mut new_map = map.clone();
+                    new_map[queen_i].0 = row_i;
+                    row_i += 1;
 
-                        if Self::validate_list(&new_map) {
-                            lowest_solve = n+1;
-                            lowest_solve_map = new_map;
-                            continue 'main;
-                        }
-                        stack.push((queen_i, new_map, n+1));
+                    if Self::validate_list(&new_map) {
+                        lowest_solve = n+1;
+                        lowest_solve_map = new_map;
+                        continue 'main;
                     }
+                    stack.push((queen_i, new_map, n+1));
                 }
             }
         }
+        
         if lowest_solve != u16::MAX {
             for row in &mut self.cur_state {
                 for val in row {
@@ -189,7 +200,7 @@ impl<const N: usize> Board<N> {
                 }
             }
         }
-
+        
         let mut col_lookup = [false; N];
         for x in queens_pos {
             unsafe {

@@ -54,8 +54,11 @@ fn main() {
                 if !read_file_to(file_name, &mut file_data) {
                     continue;
                 }
-                let board = board::Board::<8>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+                let mut board = board::Board::<8>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
                 println!("{board}");
+                println!("valid={}", board.validate_game());
+                println!("moves: {}", board.solve());
+                println!("{}", board);
             } else {
                 println!("\"{}\" is not a valid file name. File ignored, proceeding...", option.to_string_lossy());
             }
