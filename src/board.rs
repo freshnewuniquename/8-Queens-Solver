@@ -168,11 +168,9 @@ impl<const N: usize> Board<N> {
         let mut stack = Vec::with_capacity(64);
 
         let map = Board::get_queens_pos(self.cur_state);
-        if Self::validate_list(&map) {
+        if self.validate_list(&map) {
             return 0;
         }
-        
-        stack.push((0, map, 0));
         
         let mut lowest_solve = u16::MAX;
         let mut lowest_solve_map = [(u8::MAX, u8::MAX); N];
@@ -192,7 +190,7 @@ impl<const N: usize> Board<N> {
                         new_map[queen_i].0 = row_i;
                         row_i += 1;
 
-                        if Self::validate_list(&new_map) {
+                        if self.validate_list(&new_map) {
                             lowest_solve = n+1;
                             lowest_solve_map = new_map;
                             continue 'main;
@@ -217,85 +215,19 @@ impl<const N: usize> Board<N> {
         lowest_solve
     }
     #[inline(always)]
-    fn validate_list(queens_pos: &[(u8, u8); N]) -> bool {
-        let mut row_lookup = [false; N];
+    fn validate_list(&self, queens_pos: &[(u8, u8); N]) -> bool {
         for x in queens_pos {
             unsafe {
-                if *row_lookup.get_unchecked(x.0 as usize) {
-                    return false;
-                } else {
-                    *row_lookup.get_unchecked_mut(x.0 as usize) = true;
-                }
-            }
-        }
-
-        let mut col_lookup = [false; N];
-        for x in queens_pos {
-            unsafe {
-                if *col_lookup.get_unchecked(x.1 as usize) {
-                    return false;
-                } else {
-                    *col_lookup.get_unchecked_mut(x.1 as usize) = true;
-                }
-            }
-        }
-        
-        let mut i = 0;
-        while i < N {
-            let mut ii = i+1;
-            while ii < N {
-                if queens_pos[i].0.abs_diff(queens_pos[ii].0) == queens_pos[i].1.abs_diff(queens_pos[ii].1) {
+                if self.goal_state.get_unchecked(x.0 as usize).get_unchecked(x.1 as usize) == &0 {
                     return false;
                 }
-                ii += 1;
             }
-            i += 1;
         }
         true
     }
     #[allow(dead_code)]
     pub fn validate_game(&self) -> bool {
-        let mut queens_pos = Vec::with_capacity(N);
-
-        // Mark the location of the queens, and check if more than one are on the same row.
-        for (row_n, row) in self.cur_state.iter().enumerate() {
-            let mut has_queen = false;
-            for (col_n, val) in row.iter().enumerate() {
-                if val == &1 {
-                    if has_queen {
-                        return false;
-                    } else {
-                        has_queen = true;
-                        queens_pos.push((row_n, col_n));
-                    }
-                }
-            }
-        }
-
-        // Check if there are more than one queens on the same column.
-        let mut col_lookup = [false; N];
-        for x in &queens_pos {
-            if col_lookup[x.1] {
-                return false;
-            } else {
-                col_lookup[x.1] = true;
-            }
-        }
-
-        // Check diagonally - O(N^2)
-        let mut i = 0;
-        while i < N {
-            let mut ii = i+1;
-            while ii < N {
-                if queens_pos[i].0.abs_diff(queens_pos[ii].0) == queens_pos[i].1.abs_diff(queens_pos[ii].1) {
-                    return false;
-                }
-                ii += 1;
-            }
-            i += 1;
-        }
-        
-        true
+        self.cur_state == self.goal_state
     }
     pub fn to_string(&self) -> String { // TODO: const generate the $layout.
         // Using macro temporarily to store constants and stuff, as generics parameter can't be used with constant calculation as of yet.
