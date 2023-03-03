@@ -1,6 +1,7 @@
 use std::{env, fs::File, io::{Read, stdout, Write}};
 mod board;
 
+#[allow(dead_code)]
 fn interactive_menu() {
     todo!();
 }
@@ -22,13 +23,16 @@ fn read_file_to(file_name: &str, data: &mut [u8]) -> bool {
 
 fn main() {
     let cli_options = env::args_os();
-    let mut file_data = [0; 128*128]; // Supports up to 128-Queens.
+    let mut file_data = [0; 128*128]; // Supports up to 127-Queens.
 
     if let Err(_) = writeln!(stdout(), "") { // Is stdout accessible?
         // Terminate program if not accessible.
         return;
     }
-
+    // Trying out other smaller board sizes.
+    // let mut board = <board::Board::<4>>::new("a2,b2,c2,d2", "a1,a1,a1,a1");
+    // board.solve();
+    // return;
     if cli_options.len() <= 1 {
         // interactive_menu();
         read_file_to("src/init", &mut file_data);
@@ -38,7 +42,7 @@ fn main() {
             println!("moves: {}", board.solve());
             println!("{board}");
             break;
-            
+
             //let mut str1 = String::from("   ");
             //let mut str2 = String::from("   ");
             //unsafe {
@@ -54,6 +58,8 @@ fn main() {
                     continue;
                 }
                 let mut board = <board::Board::<8> as board::EightQueen>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+                println!("{board}");
+                println!("moves: {}", board::Board::solve(&mut board));
                 println!("{board}");
             } else {
                 println!("\"{}\" is not a valid file name. File ignored, proceeding...", option.to_string_lossy());
