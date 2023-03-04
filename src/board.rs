@@ -12,13 +12,13 @@ struct Coord {
 }
 
 pub trait EightQueen {
-    fn new(csv_set_data: &str) -> Board<8>;
-    fn set_with_csv(&mut self, csv_set_data: &str);
-    fn fast_set_with_csv(&mut self, csv_set_data: &str);
+    fn new(csv_init_data: &str) -> Board<8>;
+    fn set_with_csv(&mut self, csv_init_data: &str);
+    fn fast_set_with_csv(&mut self, csv_init_data: &str);
 }
 
 impl EightQueen for Board<8> {
-    fn new(csv_set_data: &str) -> Board<8> {
+    fn new(csv_init_data: &str) -> Board<8> {
         let mut board = Board {
             cur_state: [[0; 8]; 8],
             goal_state: [[0,1,0,0,0,0,0,0],[0,0,0,0,1,0,0,0],[0,0,0,0,0,0,1,0],[0,0,0,1,0,0,0,0],[1,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,1],[0,0,0,0,0,1,0,0],[0,0,1,0,0,0,0,0]],
@@ -28,19 +28,19 @@ impl EightQueen for Board<8> {
 
         #[cfg(debug_assertions)]
         {
-            EightQueen::set_with_csv(&mut board, csv_set_data);
+            EightQueen::set_with_csv(&mut board, csv_init_data);
         }
         #[cfg(not(debug_assertions))]
         {
-            EightQueen::fast_set_with_csv(&mut board, csv_set_data);
+            EightQueen::fast_set_with_csv(&mut board, csv_init_data);
         }
         board
     }
-    fn set_with_csv(&mut self, csv_set_data: &str) {
-        EightQueen::fast_set_with_csv(self, csv_set_data);
+    fn set_with_csv(&mut self, csv_init_data: &str) {
+        EightQueen::fast_set_with_csv(self, csv_init_data);
     }
     #[inline(always)]
-    fn fast_set_with_csv(&mut self, csv_set_data: &str) {
+    fn fast_set_with_csv(&mut self, csv_init_data: &str) {
         let insert_data = |csv_data: &str, dest: &mut [[u8; 8]; 8]| {
             let csv_bytes = csv_data.as_bytes();
             let mut idx = 0;
@@ -53,7 +53,7 @@ impl EightQueen for Board<8> {
             }
         };
 
-        insert_data(csv_set_data, &mut self.cur_state);
+        insert_data(csv_init_data, &mut self.cur_state);
     }
 }
 
@@ -61,7 +61,7 @@ impl<const N: usize> Board<N> {
     #[must_use]
     /// The constructor for the Board struct.
     #[allow(dead_code)]
-    pub fn new(csv_set_data: &str, csv_goal_data: &str) -> Board<N> {
+    pub fn new(csv_init_data: &str, csv_goal_data: &str) -> Board<N> {
         let mut board = Board {
             cur_state: [[0; N]; N],
             goal_state: [[0; N]; N],
@@ -70,23 +70,23 @@ impl<const N: usize> Board<N> {
 
         #[cfg(debug_assertions)]
         {
-            board.set_with_csv(csv_set_data, csv_goal_data).unwrap();
+            board.set_with_csv(csv_init_data, csv_goal_data).unwrap();
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_set_with_csv(csv_set_data, csv_goal_data);
+            board.fast_set_with_csv(csv_init_data, csv_goal_data);
         }
         board
     }
     #[allow(dead_code)]
-    pub fn set_with_csv(&mut self, csv_set_data: &str, csv_goal_data: &str) -> Result<(), ()> {
+    pub fn set_with_csv(&mut self, csv_init_data: &str, csv_goal_data: &str) -> Result<(), ()> {
         // TODO: implement the safe version.
-        unsafe { self.fast_set_with_csv(csv_set_data, csv_goal_data); }
+        unsafe { self.fast_set_with_csv(csv_init_data, csv_goal_data); }
         Ok(())
     }
     #[inline(always)]
     #[allow(dead_code)]
-    pub unsafe fn fast_set_with_csv(&mut self, csv_set_data: &str, csv_goal_data: &str) {
+    pub unsafe fn fast_set_with_csv(&mut self, csv_init_data: &str, csv_goal_data: &str) {
         let insert_data = |csv_data: &str, dest: &mut [[u8; N]; N]| {
             let csv_bytes = csv_data.as_bytes();
             let mut idx = 0;
@@ -99,7 +99,7 @@ impl<const N: usize> Board<N> {
             }
         };
 
-        insert_data(csv_set_data, &mut self.cur_state);
+        insert_data(csv_init_data, &mut self.cur_state);
         insert_data(csv_goal_data, &mut self.goal_state);
     }
     #[allow(dead_code)]
