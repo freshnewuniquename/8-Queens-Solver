@@ -11,13 +11,13 @@ This 8-Queens solver uses the complete-state formulation, in which the eight pie
 ## Usage
 The solver will receive an initial state by reading the file from the given file location through CLI, or will fallback to the default ./src/init file if none are specified.
 
-The solver currently supports the simple CSV of the coordinates of the eight squares, or the Forsyth–Edwards Notation (FEN) input format only.
+The solver currently supports the simple CSV of the coordinates of the eight squares, and the Forsyth–Edwards Notation (FEN) input format only.
 
-An CSV input example of 8 queens being placed on a horizontal line:
+An CSV input example of 8 queens being placed horizontally on the bottom-most row:
 ```
 a1,b1,c1,d1,e1,f1,h1,g1
 ```
-A FEN input example of 8 queens being placed on a horizontal line:
+A FEN input example of 8 queens being placed horizontally on the bottom-most row:
 ```
 8/8/8/8/8/8/8/QQQQQQQQ
 ```
