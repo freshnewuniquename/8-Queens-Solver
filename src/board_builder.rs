@@ -47,7 +47,7 @@ impl<'a, const N: usize> BoardBuilder<'a, N> {
                     CSV => board.fast_set_with_csv(self.init_data),
                     FEN => board.fast_set_with_fen(self.init_data),
                     Unknown => {
-                        if self.init_data.as_bytes()[0].is_ascii_lowercase() {
+                        if self.init_data.as_bytes()[2] == b',' {
                             board.fast_set_with_csv(self.init_data);
                         } else {
                             board.fast_set_with_fen(self.init_data);

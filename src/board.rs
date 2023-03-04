@@ -62,12 +62,10 @@ impl<const N: usize> Board<N> {
 
         let mut cur_count = 0;
         while cur_count < N {
-            let coord = it
-                .next()
-                .ok_or(format!(
-                    "Expected {N} queens from input, only {cur_count} found."
-                ))?
-                .trim();
+            let coord = it.next().ok_or(format!(
+                "Expected {N} queens from input, only {cur_count} found."
+            ))?;
+
             if coord.as_bytes().len() < 2 {
                 return Err(format!("Malformed Queen {} coordinates.", cur_count + 1));
             }
@@ -127,29 +125,24 @@ impl<const N: usize> Board<N> {
 
             for (i, x) in rank.bytes().enumerate() {
                 let mut valid = true;
-                if !x.is_ascii_alphanumeric() {
-                    valid = false;
-                }
 
                 if x.is_ascii_digit() && !in_digit_range {
                     in_digit_range = true;
                     last_digit_index = i;
-                } else if x.is_ascii_alphabetic() {
+                } else if x == b'q' || x == b'Q' {
                     if in_digit_range {
                         // Parse the number. Should be safe to call .unwrap().
                         cur_file += rank[last_digit_index..i].parse::<u8>().unwrap();
                         in_digit_range = false;
                     }
 
-                    if x == b'Q' {
-                        if cur_file < N as u8 {
-                            self.cur_state[cur_rank - 1][cur_file as usize] = 1;
-                        }
-                        cur_file += 1;
-                        total_queens += 1;
-                    } else {
-                        valid = false;
+                    if cur_file < N as u8 {
+                        self.cur_state[cur_rank - 1][cur_file as usize] = 1;
                     }
+                    cur_file += 1;
+                    total_queens += 1;
+                } else {
+                    valid = false;
                 }
 
                 if !valid {
