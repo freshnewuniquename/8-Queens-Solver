@@ -1,4 +1,8 @@
-use std::{env, fs::File, io::{Read, stdout, Write}};
+use std::{
+    env,
+    fs::File,
+    io::{stdout, Read, Write},
+};
 mod board;
 
 #[allow(dead_code)]
@@ -23,9 +27,10 @@ fn read_file_to(file_name: &str, data: &mut [u8]) -> bool {
 
 fn main() {
     let cli_options = env::args_os();
-    let mut file_data = [0; 128*128]; // Supports up to 127-Queens.
+    let mut file_data = [0; 128 * 128]; // Supports up to 127-Queens.
 
-    if let Err(_) = writeln!(stdout(), "") { // Is stdout accessible?
+    if let Err(_) = writeln!(stdout(), "") {
+        // Is stdout accessible?
         // Terminate program if not accessible.
         return;
     }
@@ -36,7 +41,9 @@ fn main() {
     if cli_options.len() <= 1 {
         // interactive_menu();
         read_file_to("src/init", &mut file_data);
-        let mut board = <board::Board::<8> as board::EightQueen>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+        let mut board = <board::Board<8> as board::EightQueen>::new(unsafe {
+            std::str::from_utf8_unchecked(&file_data)
+        });
         loop {
             println!("{board}");
             println!("moves: {}", board.solve());
@@ -57,12 +64,17 @@ fn main() {
                 if !read_file_to(file_name, &mut file_data) {
                     continue;
                 }
-                let mut board = <board::Board::<8> as board::EightQueen>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+                let mut board = <board::Board<8> as board::EightQueen>::new(unsafe {
+                    std::str::from_utf8_unchecked(&file_data)
+                });
                 println!("{board}");
                 println!("moves: {}", board::Board::solve(&mut board));
                 println!("{board}");
             } else {
-                println!("\"{}\" is not a valid file name. File ignored, proceeding...", option.to_string_lossy());
+                println!(
+                    "\"{}\" is not a valid file name. File ignored, proceeding...",
+                    option.to_string_lossy()
+                );
             }
         }
     }
