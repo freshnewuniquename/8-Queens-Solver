@@ -13,22 +13,29 @@ fn interactive_menu() {
     todo!();
 }
 
-fn read_file_to(file_path: String, data: &mut [u8]) -> bool {
-    println!("received {file_path}");
+/// A function that takes a file path, and reads the file data to the data buffer provided.
+///
+/// The number of bytes read will be returned.
+/// If the value is 0, then the file was not read successfully.
+fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
+    println!("Received {file_path}");
 
     match File::open(&file_path) {
         Ok(mut file_handle) => {
-            if let Err(desc) = file_handle.read(data) {
-                println!("\"{file_path}\" can't be read. [{desc}]");
-                return false;
+            let res = file_handle.read(data);
+            match res {
+                Ok(read) => read,
+                Err(desc) => {
+                    println!("\"{file_path}\" can't be read. [{desc}]");
+                    return 0;
+                }
             }
-            true
         }
         Err(desc) => {
             // There are some quirks with the let-else statement (The return thing), so not using it rn.
             let Some(file_name) = Path::new(&file_path).file_name() else {
                 println!("No file name found.");
-                return false;
+                return 0;
             };
             let file_name = file_name.to_str().expect("Not a valid UTF-8 file name.");
 
@@ -45,9 +52,10 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> bool {
                 let src_path = src_path.to_string_lossy();
 
                 println!("Searching for \"{src_path}\".");
-                return read_file_to(src_path.to_string(), data);
+                read_file_to(src_path.to_string(), data)
+            } else {
+                0
             }
-            false
         }
     }
 }
@@ -55,7 +63,6 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> bool {
 fn main() {
     let mut cli_options = env::args_os();
     let mut file_data = [0; 128 * 128]; // Supports up to 128-Queens. But only 26 addressable squares using CSV.
-                                        // FIX: remove extra uneeded bytes after file reading.
 
     if let Err(_) = writeln!(stdout(), "") {
         // Is stdout accessible?
@@ -64,31 +71,21 @@ fn main() {
     }
 
     if cli_options.len() <= 1 {
-        // interactive_menu();
-        read_file_to("src/init".into(), &mut file_data);
-        // let mut board = board::Board::<8>::new(unsafe { std::str::from_utf8_unchecked(&file_data) });
+        let read = read_file_to("init".into(), &mut file_data);
         let mut board = board_builder::BoardBuilder::<8>::new()
             .trust(false)
-            .set(unsafe { std::str::from_utf8_unchecked(&file_data) })
+            .set(unsafe { std::str::from_utf8_unchecked(&file_data[..read]) })
             .data_type(board_builder::InputDataType::CSV)
             .build()
             .unwrap();
 
-        loop {
-            println!("{board}");
-            println!("valid={}", board.validate_game());
-            println!("moves: {}", board.solve());
-            println!("{}", board);
-            break;
+        println!("{board}");
+        println!("Valid: {}\n", board.validate_game());
 
-            //let mut str1 = String::from("   ");
-            //let mut str2 = String::from("   ");
-            //unsafe {
-            //    std::io::stdin().read(str1.as_bytes_mut()).unwrap();
-            //    std::io::stdin().read(str2.as_bytes_mut()).unwrap();
-            //}
-            //board.move_piece(&str1, &str2);
-        }
+        let moves = board.solve();
+        println!("{}", board);
+        println!("Valid: {}", board.validate_game());
+        println!("Total moves: {}", moves);
     } else {
         let mut trustable = false;
         let exec_name = cli_options.next().unwrap_or_default();
@@ -99,6 +96,7 @@ fn main() {
             if let Some(option) = option.to_str() {
                 if option.starts_with('-') {
                     let option = option.split_once('=').unwrap_or((option, ""));
+
                     match (option.0, option.1) {
                         ("--help" | "-h", _) => {
                             println!(
@@ -121,14 +119,15 @@ fn main() {
                     continue;
                 }
 
-                if !read_file_to(option.into(), &mut file_data) {
+                let read = read_file_to(option.into(), &mut file_data);
+                if read == 0 {
                     continue;
                 }
 
                 // TODO: allow user to set the board size.
                 let board = board_builder::BoardBuilder::<8>::new()
                     .trust(trustable)
-                    .set(unsafe { std::str::from_utf8_unchecked(&file_data) })
+                    .set(unsafe { std::str::from_utf8_unchecked(&file_data[..read]) })
                     .build();
 
                 let mut board = match board {
@@ -138,13 +137,15 @@ fn main() {
                         continue;
                     }
                 };
-                // Friendship ended with {args}.
                 trustable = false;
 
                 println!("{board}");
-                println!("valid={}", board.validate_game());
-                println!("moves: {}", board.solve());
+                println!("Valid: {}\n", board.validate_game());
+
+                let moves = board.solve();
                 println!("{}", board);
+                println!("Valid: {}", board.validate_game());
+                println!("Total moves: {}", moves);
             } else {
                 println!(
                     "\"{}\" is not a valid UTF-8 argument. Command ignored, proceeding...",

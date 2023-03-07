@@ -3,13 +3,19 @@ use crate::search::Search;
 
 pub struct Board<const N: usize> {
     cur_state: [[u8; N]; N],
-    moves: Vec<String>,
 }
 
-#[derive(Copy, Clone)]
-struct Coord {
-    row: i8,
-    col: i8,
+#[derive(Copy, Clone, Eq, PartialEq, Default, Debug)]
+pub struct Coord {
+    pub row: i8,
+    pub col: i8,
+}
+
+impl std::fmt::Display for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: deal with board size > 'z'.
+        write!(f, "{}{}", (self.col as u8 + b'a') as char, self.row + 1)
+    }
 }
 
 pub trait EightQueen {
@@ -26,7 +32,9 @@ impl EightQueen for Board<8> {
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_set_with_csv(csv_data);
+            unsafe {
+                board.fast_set_with_csv(csv_data);
+            }
         }
         return board;
     }
@@ -36,7 +44,6 @@ impl<const N: usize> Default for Board<N> {
     fn default() -> Self {
         Board {
             cur_state: [[0; N]; N],
-            moves: Vec::with_capacity(N),
         }
     }
 }
@@ -53,10 +60,17 @@ impl<const N: usize> Board<N> {
         }
         #[cfg(not(debug_assertions))]
         {
-            board.fast_set_with_csv(csv_data);
+            unsafe {
+                board.fast_set_with_csv(csv_data);
+            }
         }
         board
     }
+    /// Sets the board's state with CSV of the queens coordinates.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the CSV data is invalid.
     pub fn set_with_csv(&mut self, csv_data: &str) -> Result<(), String> {
         let mut it = csv_data.split(',');
 
@@ -84,8 +98,12 @@ impl<const N: usize> Board<N> {
         }
         Ok(())
     }
+    /// Sets the board's state with CSV of the queens coordinates.
+    ///
+    /// This is the unsafe version [`set_with_csv`].
+    /// This function does not perform any checks to determine the validity of the CSV.
     #[inline(always)]
-    pub fn fast_set_with_csv(&mut self, csv_data: &str) {
+    pub unsafe fn fast_set_with_csv(&mut self, csv_data: &str) {
         let mut idx = 0;
         let csv_bytes = csv_data.as_bytes();
 
@@ -98,7 +116,6 @@ impl<const N: usize> Board<N> {
     }
     /// Reads the provided FEN, and input the queens into $cur_state.
     ///
-    /// TODO: more info
     /// NOTE: If there are more than $N queens, the function will only return an Err()
     ///       after all the queens are placed into the board.
     /// NOTE: The board will be left in an incomplete state when an error occurs, instead of
@@ -172,6 +189,10 @@ impl<const N: usize> Board<N> {
         }
         Ok(())
     }
+    /// Reads the provided FEN, and input the queens into $cur_state.
+    ///
+    /// This is the unsafe version of [`set_with_fen`].
+    /// This function does not perform any checks to determine the validity of the FEN.
     #[inline(always)]
     pub unsafe fn fast_set_with_fen(&mut self, fen_data: &str) {
         let mut raw_cur_state: *mut u8 = &mut self.cur_state[0][0];
@@ -204,6 +225,7 @@ impl<const N: usize> Board<N> {
     /// NOTE: This function does not check for the move validity, and will just move them regardless.
     ///
     /// # Examples:
+    ///
     /// Basic usage:
     /// ```
     /// move_piece_with_coords("a2", "a4");
@@ -257,7 +279,7 @@ impl<const N: usize> Board<N> {
         ds.push((0, map, 0));
 
         'main: while let Some((idx, map, n)) = ds.pop_next() {
-            if n >= lowest_solve && !ds.is_abort_on_found() {
+            if n >= lowest_solve {
                 // Pruning.
                 continue;
             }
@@ -384,6 +406,9 @@ impl<const N: usize> Board<N> {
         true
     }
     pub fn to_string(&self) -> String {
+        Self::to_string_inner(self.cur_state)
+    }
+    pub fn to_string_inner(map_list: [[u8; N]; N]) -> String {
         // TODO: const generate the $layout.
         // Using macro temporarily to store constants and stuff, as generics parameter can't be used with constant calculation as of yet.
         // Also acts as a central place to change all the constants, as the board output may not be final.
@@ -462,7 +487,7 @@ impl<const N: usize> Board<N> {
             i += 2;
         }
 
-        for (row_n, row) in self.cur_state[..].iter().rev().enumerate() {
+        for (row_n, row) in map_list[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
                 if val == &1 {
                     layout[cal!(row_n, col_n)] = b'Q';

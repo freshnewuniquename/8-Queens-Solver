@@ -18,8 +18,6 @@ pub trait Search {
     fn next(&self) -> Option<&Self::Item>;
 }
 
-// struct DFS<T> { }
-
 // Iterative Depth-first search.
 impl<T> Search for Vec<T> {
     type Item = T;
