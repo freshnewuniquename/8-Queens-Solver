@@ -6,9 +6,61 @@ pub struct Board<const N: usize> {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Default)]
-struct Coord {
+pub struct Coord {
     row: i8,
     col: i8,
+}
+
+impl std::fmt::Debug for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: deal with board size > 'z'.
+        write!(
+            f,
+            "{}{}",
+            (self.col as u8 + b'a') as char,
+            (self.row as u8 + b'1') as char
+        )
+    }
+}
+
+// TODO: Maybe generate all moveable moves so that an additional Coord type is not required.
+// TOOO: List out the 3-moves moves.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[allow(dead_code)]
+pub enum Moves {
+    Horizontal(Coord, Coord),
+    Vertical(Coord, Coord),
+    Diagonal(Coord, Coord),
+    ThreeMoves(Coord, Coord),
+    NoPossibleMoves,
+}
+
+#[allow(dead_code)]
+impl Moves {
+    pub fn value(&self) -> u16 {
+        use Moves::*;
+        match self {
+            Horizontal(_, _) | Vertical(_, _) | Diagonal(_, _) => 1,
+            ThreeMoves(_, _) => 3,
+            NoPossibleMoves => u16::MAX,
+        }
+    }
+    pub fn get_values(&self) -> Option<(Coord, Coord)> {
+        use Moves::*;
+        match self {
+            Horizontal(src, dest)
+            | Vertical(src, dest)
+            | Diagonal(src, dest)
+            | ThreeMoves(src, dest) => Some((*src, *dest)),
+            NoPossibleMoves => None,
+        }
+    }
+    pub fn get_src(&self) -> Option<Coord> {
+        Some(self.get_values()?.0)
+    }
+    pub fn get_dest(&self) -> Option<Coord> {
+        Some(self.get_values()?.1)
+    }
 }
 
 pub trait EightQueen {
@@ -198,7 +250,7 @@ impl<const N: usize> Board<N> {
         queens_pos
     }
     #[inline(always)]
-    pub fn solve(&mut self) -> u16 {
+    pub fn solve(&mut self) -> Vec<Moves> {
         let mut stack = Vec::with_capacity(128);
 
         let queens = Self::get_queens_pos(self.cur_state);
@@ -206,19 +258,29 @@ impl<const N: usize> Board<N> {
         let mut defined_dest = [-1; N];
 
         for (i, x) in queens.iter().enumerate() {
-            if self.goal_state[x.row as usize][x.col as usize] == 1 {
-                solved[i] = Coord { row: -1, col: -1 };
-                defined_dest[i] = i8::MAX;
+            for y in solved.iter_mut() {
+                if x == y {
+                    *y = Coord { row: -1, col: -1 };
+                    defined_dest[i] = i8::MAX;
+                }
             }
         }
 
-        stack.push((queens, defined_dest, 0, 0));
+        let mut solve_idx = 0;
+        while solve_idx < N && solved[solve_idx].row == -1 {
+            solve_idx += 1;
+        }
+        stack.push((queens, defined_dest, solve_idx, Vec::with_capacity(N)));
 
         let mut lowest_moves = u16::MAX;
+        let mut lowest_moves_list = Vec::new();
+
         while let Some((queens, defined_dest, solve_idx, moves)) = stack.pop() {
             if solve_idx == N {
-                if moves < lowest_moves {
-                    lowest_moves = moves;
+                let cur_moves_value = moves.iter().fold(0, |acc, x: &Moves| acc + x.value());
+                if cur_moves_value < lowest_moves {
+                    lowest_moves = cur_moves_value;
+                    lowest_moves_list = moves;
                 }
                 continue;
             }
@@ -228,28 +290,45 @@ impl<const N: usize> Board<N> {
             }
 
             for (i, x) in defined_dest.iter().enumerate() {
-                if x == &-1 {
+                if *x == -1 {
                     let mut defined_dest_new = defined_dest;
                     let mut queens_new = queens;
-                    defined_dest_new[i] = solve_idx as i8;
+                    let mut moves_new = moves.clone();
 
-                    let min = Self::min_moves_with_list(&queens, queens_new[i], solved[solve_idx]);
-                    queens_new[i] = solved[solve_idx];
-                    stack.push((queens, defined_dest_new, next_solve_idx, moves + min));
+                    let possible = Self::min_moves_with_list(
+                        &queens,
+                        queens[i],
+                        solved[solve_idx],
+                        &mut moves_new,
+                    );
+                    if possible {
+                        defined_dest_new[i] = solve_idx as i8;
+                        queens_new[i] = solved[solve_idx];
+                    }
+                    stack.push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                 }
             }
         }
 
-        lowest_moves
+        lowest_moves_list
     }
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
-    fn min_moves_with_list(map_list: &[Coord; N], src_piece: Coord, dest_square: Coord) -> u16 {
+    fn min_moves_with_list(
+        map_list: &[Coord; N],
+        src_piece: Coord,
+        dest_square: Coord,
+        moves: &mut Vec<Moves>,
+    ) -> bool {
         // The maximum steps allowed will always be a 3, if there is a path and, if the board is NxN with N queens.
         #[cfg(debug_assertions)]
         {
             for x in map_list {
                 debug_assert!(*x != dest_square, "$dest_square must not contain a Queen!");
             }
+            debug_assert!(
+                src_piece != dest_square,
+                "$src_piece and $dest_square should not be the same!"
+            );
         }
 
         // Define the $src_piece's and $dest_square's relative position on the board for easier comparison.
@@ -274,101 +353,254 @@ impl<const N: usize> Board<N> {
         };
 
         // These diagonals/slope are relative to the leftmost endpoint.
-        let mut _bot_left_slope = Coord { row: 0, col: 0 };
-        let mut _bot_right_slope = Coord {
-            row: 0,
-            col: N as i8,
-        };
-        let mut _top_left_slope = Coord {
-            row: N as i8,
-            col: 0,
-        };
-        let mut _top_right_slope = Coord {
-            row: N as i8,
-            col: N as i8,
-        };
+        let mut bot_left_slope = left;
+        let mut bot_right_slope = left;
+        let mut top_left_slope = left;
+        let mut top_right_slope = left;
 
-        for x in map_list {}
+        {
+            let top = N as i8 - left.row - 1;
+            let bottom = left.row;
+            let right = N as i8 - left.col - 1;
+            let left = left.col;
+
+            bot_left_slope.row -= bottom.min(left) + 1;
+            bot_left_slope.col -= bottom.min(left) + 1;
+
+            bot_right_slope.row -= bottom.min(right) + 1;
+            bot_right_slope.col += bottom.min(right) + 1;
+
+            top_left_slope.row += top.min(left) + 1;
+            top_left_slope.col -= top.min(left) + 1;
+
+            top_right_slope.row += top.min(right) + 1;
+            top_right_slope.col += top.min(right) + 1;
+        }
+
+        for x in map_list.iter().chain([right].iter()) {
+            if x.row > left.row {
+                if x.col > left.col {
+                    if x.row - left.row == x.col - left.col && x.row < top_right_slope.row {
+                        top_right_slope = *x;
+                    }
+                } else {
+                    if x.row - left.row == left.col - x.col && x.row < top_left_slope.row {
+                        top_left_slope = *x;
+                    }
+                }
+            } else if x.col > left.col {
+                if left.row - x.row == x.col - left.col && x.row > bot_right_slope.row {
+                    bot_right_slope = *x;
+                }
+            } else {
+                if left.row - x.row == left.col - x.col && x.row > bot_left_slope.row {
+                    bot_left_slope = *x;
+                }
+            }
+        }
 
         let is_inbetween = |low, mid, high| low < mid && mid < high;
         let is_inbetween_unordered =
             |end, mid, end2| is_inbetween(end, mid, end2) || is_inbetween(end2, mid, end);
-        // TODO: might try to see if storing the pieces that have the same row/column in a vec is more performant.
 
-        let mut min_path = u16::MAX;
+        // TODO: might try to see if storing the pieces that have the same row/column in a vec is more performant.
 
         // Trying min=1.
         if src.row == dest.row {
+            let mut valid = true;
             for x in map_list {
-                if x.row == src.row && !is_inbetween(bottom.col, x.col, top.col) {
-                    // $x is in between the path?
-                    min_path = 1;
+                if x.row == src.row && is_inbetween(left.col, x.col, right.col) {
+                    valid = false;
                     break;
                 }
+            }
+            if valid {
+                moves.push(Moves::Horizontal(src, dest));
+                return true;
             }
         } else if src.col == dest.col {
+            let mut valid = true;
             for x in map_list {
-                if x.col == src.col && !is_inbetween(left.row, x.row, right.row) {
-                    // $x is in between the path?
-                    min_path = 1;
+                if x.col == src.col && is_inbetween(bottom.row, x.row, top.row) {
+                    valid = false;
                     break;
                 }
             }
-        } else if top.row - bottom.row == right.col - left.col {
-            // TODO: check path is obstructed.
-            min_path = 1;
+            if valid {
+                moves.push(Moves::Vertical(src, dest));
+                return true;
+            }
+        } else if (left == dest
+            && (bot_left_slope == src
+                || bot_right_slope == src
+                || top_left_slope == src
+                || top_right_slope == src))
+            || (left == src
+                && (bot_left_slope == dest
+                    || bot_right_slope == dest
+                    || top_left_slope == dest
+                    || top_right_slope == dest))
+        {
+            moves.push(Moves::Diagonal(src, dest));
+            return true;
         }
 
-        if min_path != u16::MAX {
-            return min_path;
-        }
-        return 2;
-        /*
+        let slope_get_row = |slope: Coord, col| {
+            let orig = left;
+            if col > orig.col {
+                if slope.row > orig.row {
+                    // Top right
+                    orig.row + (col - orig.col)
+                } else {
+                    // Bottom right
+                    orig.row - (col - orig.col)
+                }
+            } else if slope.row > orig.row {
+                // Top left
+                orig.row + (orig.col - col)
+            } else {
+                // Bottom left
+                orig.row - (orig.col - col)
+            }
+        };
 
-                // Trying 2.
+        let slope_get_col = |slope: Coord, row| {
+            let orig = left;
+            if row > orig.row {
+                if slope.col > orig.col {
+                    // Top right
+                    orig.col + (row - orig.row)
+                } else {
+                    // Top left
+                    orig.col - (row - orig.row)
+                }
+            } else if slope.col > orig.col {
+                // Bottom right
+                orig.col + (orig.row - row)
+            } else {
+                // Bottom left
+                orig.col - (orig.col - row)
+            }
+        };
 
-                // for x in map_list {
-                //     if x.col > top_right_slope.col
-                //         && x.row > top_right_slope.row
-                //         && x.row - top_right_slope.row == x.col - top_right_slope.col
-                //     {
-                //         top_right_slope = *x;
-                //     } else if x.col > bot_right_slope.col
-                //         && bot_right_slope.row > x.row
-                //         && x.col - bot_right_slope.col == bot_right_slope.row - x.row
-                //     {
-                //         bot_right_slope = *x;
-                //     }
-                // }
-
-                // TODO: Do dope slope stuff
-                if bot_right_slope.col >= right.col {
-                    let mut valid = true;
-                    for x in map_list {
-                        if x.col == right.col && is_inbetween_unordered(bot_right_slope.row, x.row, right.row) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    if valid {
-                        min_path = 2;
-                    }
-                } else if top_right_slope.col >= right.col {
-                    let mut valid = true;
-                    for x in map_list {
-                        if x.col == right.col && is_inbetween_unordered(top_right_slope.row, x.row, right.row) {
-                            valid = false;
-                            break;
-                        }
-                    }
-                    if valid {
-                        min_path = 2;
+        let mut capture = |slope| {
+            (
+                slope_get_row,
+                slope_get_col,
+                is_inbetween_unordered,
+                map_list,
+                slope,
+                right,
+                src,
+                dest,
+                moves as *mut Vec<_>,
+            )
+        };
+        macro_rules! enter_slope {
+            (vertically $capture: expr) => {{
+                let (fn1, _, fn3, a, b, c, d, e, f) = $capture;
+                let intersection = fn1(b, c.col);
+                enter_slope!(fn3, a, c, d, e, intersection, f, row, col, Vertical)
+            }};
+            (horizontally $capture: expr) => {{
+                let (_, fn2, fn3, a, b, c, d, e, f) = $capture;
+                let intersection = fn2(b, c.row);
+                enter_slope!(fn3, a, c, d, e, intersection, f, col, row, Horizontal)
+            }};
+            ($is_inbetween_unordered: expr, $map_list: expr, $right: expr, $src: expr, $dest: expr, $intersection: expr, $moves: expr, $main_dir: tt, $opp_dir: tt, $direction: tt) => {{
+                let mut valid = true;
+                for x in $map_list {
+                    if x.$opp_dir == $right.$opp_dir
+                        && $is_inbetween_unordered($intersection, x.$main_dir, $right.$main_dir)
+                    {
+                        valid = false;
+                        break;
                     }
                 }
-        */
-        min_path
+
+                use Moves::*;
+                if valid {
+                    let intersection = Coord {
+                        $main_dir: $intersection,
+                        $opp_dir: $right.$opp_dir,
+                    };
+
+                    let moves = unsafe { $moves.as_mut().unwrap() };
+                    if $right == $src {
+                        moves.push($direction($src, intersection));
+                        moves.push(Diagonal(intersection, $dest));
+                    } else {
+                        moves.push(Diagonal($src, intersection));
+                        moves.push($direction(intersection, $dest));
+                    }
+                }
+                valid
+            }};
+        }
+
+        // Trying 2.
+        if bot_right_slope.col > right.col {
+            if enter_slope!(vertically capture(bot_right_slope)) {
+                return true;
+            }
+        // }
+        } else if top_right_slope.col >= right.col {
+            // if top_right_slope.col > right.col {
+            if enter_slope!(vertically capture(top_right_slope)) {
+                return true;
+            }
+        // }
+        } else if top_right_slope.row >= right.row {
+            // if top_right_slope.row > right.row {
+            if enter_slope!(horizontally capture(top_right_slope)) {
+                return true;
+            }
+        // }
+        } else if top_left_slope.row >= right.row {
+            // if top_left_slope.row > right.row {
+            if enter_slope!(horizontally capture(top_left_slope)) {
+                return true;
+            }
+        // }
+        } else if bot_left_slope.row >= right.row {
+            // if bot_left_slope.row > right.row {
+            if enter_slope!(horizontally capture(bot_left_slope)) {
+                return true;
+            }
+        // }
+        } else if bot_right_slope.row >= right.row {
+            // if bot_right_slope.row > right.row {
+            if enter_slope!(horizontally capture(bot_right_slope)) {
+                return true;
+            }
+        }
+        // TODO: Diagonal to Diagonal move
+
+        // TODO: check if path exist.
+        let path_exist = true;
+        if path_exist {
+            moves.push(Moves::ThreeMoves(src, dest));
+            true
+        } else {
+            false
+        }
+    }
+    pub fn print_moves(&mut self, moves: &Vec<Moves>) {
+        let mut map = self.cur_state;
+        for (i, x) in moves.iter().enumerate() {
+            if let Some((src, dest)) = x.get_values() {
+                map[src.row as usize][src.col as usize] = 0;
+                map[dest.row as usize][dest.col as usize] = 1;
+            }
+
+            println!("{}\n", Self::to_string_inner(&map));
+            println!("Move {}: {x:?}\n\n", i + 1);
+        }
     }
     pub fn to_string(&self) -> String {
+        Self::to_string_inner(&self.cur_state)
+    }
+    fn to_string_inner(map: &[[u8; N]; N]) -> String {
         // TODO: const generate the $layout.
         // Using macro temporarily to store constants and stuff, as generics parameter can't be used with constant calculation as of yet.
         // Also acts as a central place to change all the constants, as the board output may not be final.
@@ -447,7 +679,7 @@ impl<const N: usize> Board<N> {
             i += 2;
         }
 
-        for (row_n, row) in self.cur_state[..].iter().rev().enumerate() {
+        for (row_n, row) in map[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
                 if val == &1 {
                     layout[cal!(row_n, col_n)] = b'Q';

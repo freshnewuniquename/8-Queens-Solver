@@ -44,20 +44,10 @@ fn main() {
         let mut board = <board::Board<8> as board::EightQueen>::new(unsafe {
             std::str::from_utf8_unchecked(&file_data)
         });
-        loop {
-            println!("{board}");
-            println!("moves: {}", board.solve());
-            println!("{board}");
-            break;
-
-            //let mut str1 = String::from("   ");
-            //let mut str2 = String::from("   ");
-            //unsafe {
-            //    std::io::stdin().read(str1.as_bytes_mut()).unwrap();
-            //    std::io::stdin().read(str2.as_bytes_mut()).unwrap();
-            //}
-            //board.move_piece(&str1, &str2);
-        }
+        println!("{board}");
+        let ans = board.solve();
+        println!("moves: {:?}", ans);
+        board.print_moves(&ans);
     } else {
         for option in cli_options.skip(1) {
             if let Some(file_name) = option.to_str() {
@@ -68,8 +58,9 @@ fn main() {
                     std::str::from_utf8_unchecked(&file_data)
                 });
                 println!("{board}");
-                println!("moves: {}", board::Board::solve(&mut board));
-                println!("{board}");
+                let ans = board.solve();
+                println!("moves: {:?}", ans);
+                board.print_moves(&ans);
             } else {
                 println!(
                     "\"{}\" is not a valid file name. File ignored, proceeding...",
