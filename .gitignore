@@ -2,3 +2,5 @@ Cargo.lock
 target/*
 *repl*
 bench
+src/.goal_board
+vgcore*
