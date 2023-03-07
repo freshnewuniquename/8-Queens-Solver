@@ -266,7 +266,7 @@ impl<const N: usize> Board<N> {
                 let mut row_i = 0;
 
                 while row_i < N as u8 {
-                    let mut new_map = map.clone();
+                    let mut new_map = map;
                     new_map[queen_i].0 = row_i;
                     row_i += 1;
 
