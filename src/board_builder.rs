@@ -46,9 +46,9 @@ impl<'a, const N: usize> BoardBuilder<'a, N> {
     /// # Examples:
     ///
     /// ```
-    /// let trustworthy = true;
+    /// let trustworthy = Some(true);
     /// let b = BoardBuilder::new()
-    ///     .pipe(|s| if trustworthy { s.trust(true) } else { s })
+    ///     .pipe(|s| if let Some(trust) = trustworthy { s.trust(trust) } else { s })
     ///     .build();
     /// ```
     pub fn pipe(self, fun: impl FnOnce(Self) -> Self) -> Self {

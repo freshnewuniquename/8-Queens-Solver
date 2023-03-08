@@ -1,5 +1,5 @@
+use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
 use std::collections::{BinaryHeap, VecDeque};
-use std::cmp::{Eq, PartialEq, Ord, PartialOrd};
 
 #[allow(dead_code)]
 pub trait Search {
@@ -59,7 +59,7 @@ impl<T> Search for DFS<T> {
     type Item = T;
 
     const ABORT_ON_FOUND: bool = false;
-    
+
     fn new() -> Self {
         DFS(Vec::new())
     }
@@ -67,7 +67,7 @@ impl<T> Search for DFS<T> {
         DFS(Vec::with_capacity(n))
     }
     fn next(&self) -> Option<&Self::Item> {
-        self.0.get(self.0.len()-1)
+        self.0.get(self.0.len() - 1)
     }
     fn pop_next(&mut self) -> Option<Self::Item> {
         self.0.pop()
@@ -80,14 +80,13 @@ impl<T> Search for DFS<T> {
     }
 }
 
-
 // Breadth-first search.
 pub struct BFS<T>(VecDeque<(T, i8)>, i8);
 impl<T> Search for BFS<T> {
     type Item = T;
 
     const ABORT_ON_FOUND: bool = true;
-    
+
     fn new() -> Self {
         BFS(VecDeque::new(), 0)
     }
@@ -100,7 +99,7 @@ impl<T> Search for BFS<T> {
     fn pop_next(&mut self) -> Option<Self::Item> {
         while let Some(x) = self.0.pop_front() {
             if x.1 > 1 {
-                self.0.push_back((x.0, x.1-1));
+                self.0.push_back((x.0, x.1 - 1));
             } else {
                 return Some(x.0);
             }
@@ -146,7 +145,7 @@ impl<T> Search for Dijkstra<T> {
     type Item = T;
 
     const ABORT_ON_FOUND: bool = true;
-    
+
     fn new() -> Self {
         Dijkstra(BinaryHeap::new(), 0)
     }
