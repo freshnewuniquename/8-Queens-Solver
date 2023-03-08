@@ -5,14 +5,10 @@ pub trait Search {
     type Item;
 
     const ABORT_ON_FOUND: bool;
-    const IS_INFORMED: bool;
 
     // &self is used to make the function a method instead of an associative function.
     fn is_abort_on_found(&self) -> bool {
         Self::ABORT_ON_FOUND
-    }
-    fn is_informed_search(&self) -> bool {
-        Self::IS_INFORMED
     }
     fn new() -> Self;
     fn with_capacity(n: usize) -> Self;
@@ -62,7 +58,6 @@ impl<T> Search for DFS<T> {
     type Item = T;
 
     const ABORT_ON_FOUND: bool = false;
-    const IS_INFORMED: bool = false;
     
     fn new() -> Self {
         DFS(Vec::new())
@@ -91,7 +86,6 @@ impl<T> Search for BFS<T> {
     type Item = T;
 
     const ABORT_ON_FOUND: bool = true;
-    const IS_INFORMED: bool = true;
     
     fn new() -> Self {
         BFS(VecDeque::new(), 0)
