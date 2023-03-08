@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::search::Search;
+use crate::search::{self, Search};
 
 pub struct Board<const N: usize = 8> {
     pub(super) init_state: [[u8; N]; N],
@@ -353,7 +353,8 @@ impl<const N: usize> Board<N> {
         // Breadth-first search cannot be used in this implementation, because
         // each search returns more than one moves.
         // For example, It may return Vertical and Diagonal in one go.
-        let mut ds = <Vec<_> as Search>::with_capacity(128);
+        let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
+        // let mut ds = <search::BFS<_> as Search>::with_capacity(6467); // Uses 6467 on ./src/init3.
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut solved = Self::get_queens_pos(self.goal_state);
@@ -367,6 +368,10 @@ impl<const N: usize> Board<N> {
                 }
             }
         }
+
+        // Capacity usage analysis. Will only be used in debug mode.
+        #[allow(unused_mut)]
+        let mut _max_ds_len = 0;
 
         let mut solve_idx = 0;
         while solve_idx < N && solved[solve_idx].row == -1 {
@@ -401,22 +406,29 @@ impl<const N: usize> Board<N> {
                     let mut queens_new = queens;
                     let mut moves_new = moves.clone();
 
-                    let possible = Self::min_moves_with_list(
+                    let moves = Self::min_moves_with_list(
                         &queens,
                         queens[i],
                         solved[solve_idx],
                         &mut moves_new,
                     );
-                    if possible {
+                    if moves != -1 {
                         defined_dest_new[i] = solve_idx as i8;
                         queens_new[i] = solved[solve_idx];
+                        ds.moves_hint(moves).apply_node_value(0).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
+                    } else {
+                        ds.moves_hint(0).apply_node_value(0).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                     }
-                    ds.push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                 }
+            }
+            #[cfg(debug_assertions)] {
+                _max_ds_len = _max_ds_len.max(ds.len());
             }
         }
 
-        println!("Used: {}", ds.capacity());
+        #[cfg(debug_assertions)] {
+            dbg!(_max_ds_len);
+        }
         lowest_moves_list
     }
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
@@ -425,7 +437,7 @@ impl<const N: usize> Board<N> {
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
-    ) -> bool {
+    ) -> i8 {
         // The maximum steps allowed will always be a 3, if there is a path and, if the board is NxN with N queens.
         #[cfg(debug_assertions)]
         {
@@ -523,7 +535,7 @@ impl<const N: usize> Board<N> {
             }
             if valid {
                 moves.push(Moves::Horizontal(src, dest));
-                return true;
+                return 1;
             }
         } else if src.col == dest.col {
             let mut valid = true;
@@ -535,7 +547,7 @@ impl<const N: usize> Board<N> {
             }
             if valid {
                 moves.push(Moves::Vertical(src, dest));
-                return true;
+                return 1;
             }
         } else if (left == dest
             && (bot_left_slope == src
@@ -549,7 +561,7 @@ impl<const N: usize> Board<N> {
                     || top_right_slope == dest))
         {
             moves.push(Moves::Diagonal(src, dest));
-            return true;
+            return 1;
         }
 
         let slope_get_row = |slope: Coord, col| {
@@ -648,37 +660,37 @@ impl<const N: usize> Board<N> {
         // Trying 2.
         if bot_right_slope.col > right.col {
             if enter_slope!(vertically capture(bot_right_slope)) {
-                return true;
+                return 2;
             }
         // }
         } else if top_right_slope.col >= right.col {
             // if top_right_slope.col > right.col {
             if enter_slope!(vertically capture(top_right_slope)) {
-                return true;
+                return 2;
             }
         // }
         } else if top_right_slope.row >= right.row {
             // if top_right_slope.row > right.row {
             if enter_slope!(horizontally capture(top_right_slope)) {
-                return true;
+                return 2;
             }
         // }
         } else if top_left_slope.row >= right.row {
             // if top_left_slope.row > right.row {
             if enter_slope!(horizontally capture(top_left_slope)) {
-                return true;
+                return 2;
             }
         // }
         } else if bot_left_slope.row >= right.row {
             // if bot_left_slope.row > right.row {
             if enter_slope!(horizontally capture(bot_left_slope)) {
-                return true;
+                return 2;
             }
         // }
         } else if bot_right_slope.row >= right.row {
             // if bot_right_slope.row > right.row {
             if enter_slope!(horizontally capture(bot_right_slope)) {
-                return true;
+                return 2;
             }
         }
         // TODO: Diagonal to Diagonal move
@@ -687,9 +699,9 @@ impl<const N: usize> Board<N> {
         let path_exist = true;
         if path_exist {
             moves.push(Moves::ThreeMoves(src, dest));
-            true
+            3
         } else {
-            false
+            -1
         }
     }
     pub fn print_moves(&mut self, moves: &Vec<Moves>) {
