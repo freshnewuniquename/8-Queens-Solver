@@ -78,7 +78,7 @@ fn main() {
     let mut files_read_count = 0;
     let mut read = 0;
     let mut quiet = false;
-    
+
     let exec_name = cli_options.next().unwrap_or_default();
     let exec_name = exec_name.to_string_lossy();
     let exec_name = exec_name.rsplit_once('/').unwrap_or(("", &exec_name)).1;
@@ -114,7 +114,7 @@ fn main() {
                 continue;
             }
 
-            let read_new = read_file_to(option.into(), &mut file_buffer[read..]).clone();
+            let read_new = read + read_file_to(option.into(), &mut file_buffer[read..]);
             if read_new == read {
                 continue;
             }
@@ -143,13 +143,12 @@ fn main() {
     } else {
         0
     };
-    
+
     if goal_range == (0, 0) && N != 8 {
         let goal = read_file_to("goal".into(), &mut file_buffer[init..]);
         goal_range = (init, goal);
     }
 
-    
     // Convert bytes to strings.
     let init_data = if init_range != (0, 0) {
         unsafe { std::str::from_utf8_unchecked(&file_buffer[init_range.0..init_range.1]) }
@@ -166,8 +165,7 @@ fn main() {
     let board = board_builder::BoardBuilder::<N>::new()
         .trust(trustable)
         .pipe_if(!init_data.is_empty(), |s| s.set_init(init_data))
-        .pipe_if(!goal_data.is_empty(), |s| s.set_init(goal_data))
-        // .set_init(unsafe { std::str::from_utf8_unchecked(&file_data[..read]) })
+        .pipe_if(!goal_data.is_empty(), |s| s.set_goal(goal_data))
         .build();
 
     let mut board = match board {
