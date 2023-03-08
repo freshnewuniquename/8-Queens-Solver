@@ -1,25 +1,27 @@
-#[allow(dead_code)]
-pub struct Board<const N: usize> {
-    cur_state: [[u8; N]; N],
-    goal_state: [[u8; N]; N],
-    moves: Vec<String>,
+#![allow(dead_code)]
+use crate::search::Search;
+
+pub struct Board<const N: usize = 8> {
+    pub(super) init_state: [[u8; N]; N],
+    pub(super) goal_state: [[u8; N]; N],
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default)]
 pub struct Coord {
-    row: i8,
-    col: i8,
+    pub row: i8,
+    pub col: i8,
+}
+
+impl std::fmt::Display for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: deal with board size > 'z'.
+        write!(f, "{}{}", (self.col as u8 + b'a') as char, self.row + 1)
+    }
 }
 
 impl std::fmt::Debug for Coord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: deal with board size > 'z'.
-        write!(
-            f,
-            "{}{}",
-            (self.col as u8 + b'a') as char,
-            (self.row as u8 + b'1') as char
-        )
+        std::fmt::Display::fmt(self, f)
     }
 }
 
@@ -63,17 +65,10 @@ impl Moves {
     }
 }
 
-pub trait EightQueen {
-    fn new(csv_init_data: &str) -> Board<8>;
-    fn set_with_csv(&mut self, csv_init_data: &str);
-    fn fast_set_with_csv(&mut self, csv_init_data: &str);
-}
-
-impl EightQueen for Board<8> {
-    fn new(csv_init_data: &str) -> Board<8> {
-        let mut board = Board {
-            cur_state: [[0; 8]; 8],
-            goal_state: [
+impl<const N: usize> Default for Board<N> {
+    fn default() -> Self {
+        let goal_state = if N == 8 {
+            const EIGHT_QUEEN_GOAL: [[u8; 8]; 8] = [
                 [0, 1, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 1, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 1, 0],
@@ -82,110 +77,214 @@ impl EightQueen for Board<8> {
                 [0, 0, 0, 0, 0, 0, 0, 1],
                 [0, 0, 0, 0, 0, 1, 0, 0],
                 [0, 0, 1, 0, 0, 0, 0, 0],
-            ],
-            // goal_state: [[0,1,1,0,1,1,1,1],[1,0,0,1,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0]],
-            moves: Vec::with_capacity(8),
+            ];
+
+            std::array::from_fn(|row_i| {
+                std::array::from_fn(|col_i| unsafe {
+                    *EIGHT_QUEEN_GOAL.get_unchecked(row_i).get_unchecked(col_i)
+                })
+            })
+        } else {
+            [[0; N]; N]
         };
 
-        #[cfg(debug_assertions)]
-        {
-            EightQueen::set_with_csv(&mut board, csv_init_data);
+        Board {
+            init_state: [[0; N]; N],
+            goal_state,
         }
-        #[cfg(not(debug_assertions))]
-        {
-            EightQueen::fast_set_with_csv(&mut board, csv_init_data);
-        }
-        board
-    }
-    fn set_with_csv(&mut self, csv_init_data: &str) {
-        EightQueen::fast_set_with_csv(self, csv_init_data);
-    }
-    #[inline(always)]
-    fn fast_set_with_csv(&mut self, csv_init_data: &str) {
-        let insert_data = |csv_data: &str, dest: &mut [[u8; 8]; 8]| {
-            let csv_bytes = csv_data.as_bytes();
-            let mut idx = 0;
-
-            while idx < 8 * 3 - 1 {
-                let file = csv_bytes[idx] - b'a';
-                let rank = csv_bytes[idx + 1] - b'1'; // TODO: when N > 9
-                dest[rank as usize][file as usize] = 1;
-                idx += 3; // Skips a comma too.
-            }
-        };
-
-        insert_data(csv_init_data, &mut self.cur_state);
     }
 }
 
 impl<const N: usize> Board<N> {
     #[must_use]
     /// The constructor for the Board struct.
-    #[allow(dead_code)]
-    pub fn new(csv_init_data: &str, csv_goal_data: &str) -> Board<N> {
-        let mut board = Board {
-            cur_state: [[0; N]; N],
-            goal_state: [[0; N]; N],
-            moves: Vec::with_capacity(N),
-        };
+    pub fn new(init_data: &str, goal_data: &str) -> Board<N> {
+        let mut board = Board::default();
 
         #[cfg(debug_assertions)]
         {
-            board.set_with_csv(csv_init_data, csv_goal_data).unwrap();
+            Board::set(init_data, &mut board.init_state).unwrap();
+            Board::set(goal_data, &mut board.goal_state).unwrap();
         }
         #[cfg(not(debug_assertions))]
         {
             unsafe {
-                board.fast_set_with_csv(csv_init_data, csv_goal_data);
+                Board::fast_set(init_data, &mut board.init_state);
+                Board::fast_set(goal_data, &mut board.goal_state);
             }
         }
         board
     }
-    #[allow(dead_code)]
-    pub fn set_with_csv(&mut self, csv_init_data: &str, csv_goal_data: &str) -> Result<(), ()> {
-        // TODO: implement the safe version.
-        unsafe {
-            self.fast_set_with_csv(csv_init_data, csv_goal_data);
-        }
-        Ok(())
-    }
-    #[inline(always)]
-    #[allow(dead_code)]
-    pub unsafe fn fast_set_with_csv(&mut self, csv_init_data: &str, csv_goal_data: &str) {
-        let insert_data = |csv_data: &str, dest: &mut [[u8; N]; N]| {
-            let csv_bytes = csv_data.as_bytes();
-            let mut idx = 0;
-
-            while idx < N * 3 - 1 {
-                let file = csv_bytes[idx] - b'a';
-                let rank = csv_bytes[idx + 1] - b'1'; // TODO: when N > 9
-                dest[rank as usize][file as usize] = 1;
-                idx += 3; // Skips a comma too.
+    /// Takes in a string of data, and buffer, then automatically determine the type
+    /// of data to decode, fill in into the buffer, and returns the result.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the input data does not match any of the
+    /// current supported file types.
+    pub fn set(data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
+        if let Err(fen_desc) = Board::set_with_fen(data, buf) {
+            if let Err(csv_desc) = Board::set_with_csv(data, buf) {
+                return Err(format!(
+                    "Malformed init input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
+                ));
             }
-        };
-
-        insert_data(csv_init_data, &mut self.cur_state);
-        insert_data(csv_goal_data, &mut self.goal_state);
-    }
-    #[allow(dead_code)]
-    pub fn set_with_fen(&mut self, fen_data: &str) -> Result<(), ()> {
-        // TODO: Implement the safe version.
-        unsafe {
-            self.fast_set_with_fen(fen_data);
         }
         Ok(())
     }
+    /// Takes in a string of data, and buffer, then automatically determine the type
+    /// of data to decode, fill in into the buffer.
+    ///
+    /// This is the unsafe version of [`set`]. For more information, refer to that
+    /// function.
     #[inline(always)]
-    #[allow(dead_code)]
-    pub unsafe fn fast_set_with_fen(&mut self, fen_data: &str) {
-        let mut raw_cur_state: *mut u8 = &mut self.cur_state[0][0];
+    pub unsafe fn fast_set(data: &str, buf: &mut [[u8; N]; N]) {
+        if data.as_bytes()[2] == b',' {
+            Board::fast_set_with_csv(data, buf);
+        } else {
+            Board::fast_set_with_fen(data, buf);
+        }
+    }
+    /// Sets the board's state with CSV of the queens coordinates.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the CSV data is invalid.
+    pub fn set_with_csv(csv_data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
+        let mut it = csv_data.split(',');
+
+        let mut cur_count = 0;
+        while cur_count < N {
+            let coord = it.next().ok_or(format!(
+                "Expected {N} queens from input, only {cur_count} found."
+            ))?;
+
+            if coord.as_bytes().len() < 2 {
+                return Err(format!("Malformed Queen {} coordinates.", cur_count + 1));
+            }
+
+            let col = coord.as_bytes()[0].saturating_sub(b'a' - 1);
+            let row = coord.as_bytes()[1].saturating_sub(b'0');
+
+            if col > N as u8 || row > N as u8 || col == 0 || row == 0 {
+                return Err(format!(
+                    "Malformed Queen {} coordinates value.",
+                    cur_count + 1
+                ));
+            }
+            buf[row as usize - 1][col as usize - 1] = 1;
+            cur_count += 1;
+        }
+        Ok(())
+    }
+    /// Sets the board's state with CSV of the queens coordinates.
+    ///
+    /// This is the unsafe version [`set_with_csv`].
+    /// This function does not perform any checks to determine the validity of the CSV.
+    #[inline(always)]
+    pub fn fast_set_with_csv(csv_data: &str, buf: &mut [[u8; N]; N]) {
+        let csv_bytes = csv_data.as_bytes();
+        let mut idx = 0;
+
+        while idx < N * 3 - 1 {
+            let file = csv_bytes[idx] - b'a';
+            let rank = csv_bytes[idx + 1] - b'1'; // TODO: when N > 9
+            unsafe {
+                *buf.get_unchecked_mut(rank as usize)
+                    .get_unchecked_mut(file as usize) = 1;
+            }
+            idx += 3; // Skips a comma too.
+        }
+    }
+    /// Reads the provided FEN, and input the queens into $init_state.
+    ///
+    /// NOTE: If there are more than $N queens, the function will only return an Err()
+    ///       after all the queens are placed into the board.
+    /// NOTE: The board will be left in an incomplete state when an error occurs, instead of
+    ///       being left in an untouched state.
+    pub fn set_with_fen(fen_data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
+        // Splits the metadata from the board.
+        let fen_data = fen_data.split_once(' ').unwrap_or((fen_data, "")).0;
+
+        let ranks_total = fen_data
+            .bytes()
+            .fold(0, |acc, x| if x == b'/' { acc + 1 } else { acc });
+        if ranks_total != N - 1 {
+            return Err(format!("Expected {N} ranks, but found {ranks_total}."));
+        }
+
+        let mut it = fen_data.split('/');
+        let mut cur_rank = N;
+        let mut total_queens = 0;
+
+        while let Some(rank) = it.next() {
+            let mut cur_file = 0u8;
+            let mut last_digit_index = 0;
+            let mut in_digit_range = false;
+
+            for (i, x) in rank.bytes().enumerate() {
+                let mut valid = true;
+
+                if x.is_ascii_digit() && !in_digit_range {
+                    in_digit_range = true;
+                    last_digit_index = i;
+                } else if x == b'q' || x == b'Q' {
+                    if in_digit_range {
+                        // Parse the number. Should be safe to call .unwrap().
+                        cur_file += rank[last_digit_index..i].parse::<u8>().unwrap();
+                        in_digit_range = false;
+                    }
+
+                    if cur_file < N as u8 {
+                        buf[cur_rank - 1][cur_file as usize] = 1;
+                    }
+                    cur_file += 1;
+                    total_queens += 1;
+                } else {
+                    valid = false;
+                }
+
+                if !valid {
+                    return Err(format!(
+                        "Unexpected token '{}' on rank {cur_rank}",
+                        x as char,
+                    ));
+                }
+            }
+
+            if in_digit_range {
+                cur_file += rank[last_digit_index..].parse::<u8>().unwrap();
+            }
+
+            if cur_file != N as u8 {
+                return Err(format!(
+                    "Expected a total of {N} files on rank {cur_rank}, found {cur_file}."
+                ));
+            }
+            cur_rank -= 1;
+        }
+
+        if total_queens != N {
+            return Err(format!(
+                "Expected a total of {N} queens, {total_queens} found."
+            ));
+        }
+        Ok(())
+    }
+    /// Reads the provided FEN, and input the queens into $init_state.
+    ///
+    /// This is the unsafe version of [`set_with_fen`].
+    /// This function does not perform any checks to determine the validity of the FEN.
+    #[inline(always)]
+    pub unsafe fn fast_set_with_fen(fen_data: &str, buf: &mut [[u8; N]; N]) {
+        let mut raw_init_state: *mut u8 = &mut buf[0][0];
         let fen_data = fen_data.as_bytes();
 
         let mut idx = 0;
         while fen_data[idx] != b' ' {
             if fen_data[idx] & 0x60 != 0 {
-                *raw_cur_state = 1;
-                raw_cur_state = raw_cur_state.add(1);
+                *raw_init_state = 1;
+                raw_init_state = raw_init_state.add(1);
                 idx += 1;
             } else {
                 let mut n = fen_data[idx] - b'0';
@@ -199,7 +298,7 @@ impl<const N: usize> Board<N> {
                     idx += 1;
                     n += fen_data[idx] - b'0';
                 }
-                raw_cur_state = raw_cur_state.add(n as usize);
+                raw_init_state = raw_init_state.add(n as usize);
             }
         }
     }
@@ -208,11 +307,11 @@ impl<const N: usize> Board<N> {
     /// NOTE: This function does not check for the move validity, and will just move them regardless.
     ///
     /// # Examples:
+    ///
     /// Basic usage:
     /// ```
     /// move_piece_with_coords("a2", "a4");
     /// ```
-    #[allow(dead_code)]
     fn move_piece_with_coords(&mut self, src: &str, dest: &str) {
         let src = src.as_bytes();
         let dest = dest.as_bytes();
@@ -220,16 +319,16 @@ impl<const N: usize> Board<N> {
         let s = ((src[0] - b'a') as usize, (src[1] - b'1') as usize);
         let d = ((dest[0] - b'a') as usize, (dest[1] - b'1') as usize);
 
-        if self.cur_state[s.1][s.0] == 1 {
-            self.cur_state[s.1][s.0] = 0;
-            self.cur_state[d.1][d.0] = 1;
+        if self.init_state[s.1][s.0] == 1 {
+            self.init_state[s.1][s.0] = 0;
+            self.init_state[d.1][d.0] = 1;
         } else {
             println!("Move invalid");
         }
     }
     /// Returns an N-array of a row and column tuple of the queens position on the board.
     fn get_queens_pos(map: [[u8; N]; N]) -> [Coord; N] {
-        let mut queens_pos = [Coord { row: 0, col: 0 }; N];
+        let mut queens_pos = [Coord::default(); N];
         let mut idx = 0;
 
         for (row_n, row) in map.iter().enumerate().rev() {
@@ -246,14 +345,17 @@ impl<const N: usize> Board<N> {
                 }
             }
         }
-        queens_pos.sort_unstable_by_key(|x| x.col);
+        queens_pos.sort_unstable();
         queens_pos
     }
     #[inline(always)]
     pub fn solve(&mut self) -> Vec<Moves> {
-        let mut stack = Vec::with_capacity(128);
+        // Breadth-first search cannot be used in this implementation, because
+        // each search returns more than one moves.
+        // For example, It may return Vertical and Diagonal in one go.
+        let mut ds = <Vec<_> as Search>::with_capacity(128);
 
-        let queens = Self::get_queens_pos(self.cur_state);
+        let queens = Self::get_queens_pos(self.init_state);
         let mut solved = Self::get_queens_pos(self.goal_state);
         let mut defined_dest = [-1; N];
 
@@ -270,19 +372,23 @@ impl<const N: usize> Board<N> {
         while solve_idx < N && solved[solve_idx].row == -1 {
             solve_idx += 1;
         }
-        stack.push((queens, defined_dest, solve_idx, Vec::with_capacity(N)));
+        ds.push((queens, defined_dest, solve_idx, Vec::with_capacity(N)));
 
         let mut lowest_moves = u16::MAX;
         let mut lowest_moves_list = Vec::new();
 
-        while let Some((queens, defined_dest, solve_idx, moves)) = stack.pop() {
+        while let Some((queens, defined_dest, solve_idx, moves)) = ds.pop_next() {
             if solve_idx == N {
                 let cur_moves_value = moves.iter().fold(0, |acc, x: &Moves| acc + x.value());
                 if cur_moves_value < lowest_moves {
                     lowest_moves = cur_moves_value;
                     lowest_moves_list = moves;
                 }
-                continue;
+                if ds.is_abort_on_found() {
+                    break;
+                } else {
+                    continue;
+                }
             }
             let mut next_solve_idx = solve_idx + 1;
             while next_solve_idx < N && solved[next_solve_idx].row == -1 {
@@ -305,11 +411,12 @@ impl<const N: usize> Board<N> {
                         defined_dest_new[i] = solve_idx as i8;
                         queens_new[i] = solved[solve_idx];
                     }
-                    stack.push((queens_new, defined_dest_new, next_solve_idx, moves_new));
+                    ds.push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                 }
             }
         }
 
+        println!("Used: {}", ds.capacity());
         lowest_moves_list
     }
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
@@ -586,7 +693,7 @@ impl<const N: usize> Board<N> {
         }
     }
     pub fn print_moves(&mut self, moves: &Vec<Moves>) {
-        let mut map = self.cur_state;
+        let mut map = self.init_state;
         for (i, x) in moves.iter().enumerate() {
             if let Some((src, dest)) = x.get_values() {
                 map[src.row as usize][src.col as usize] = 0;
@@ -598,9 +705,9 @@ impl<const N: usize> Board<N> {
         }
     }
     pub fn to_string(&self) -> String {
-        Self::to_string_inner(&self.cur_state)
+        Self::to_string_inner(&self.init_state)
     }
-    fn to_string_inner(map: &[[u8; N]; N]) -> String {
+    pub fn to_string_inner(map_list: &[[u8; N]; N]) -> String {
         // TODO: const generate the $layout.
         // Using macro temporarily to store constants and stuff, as generics parameter can't be used with constant calculation as of yet.
         // Also acts as a central place to change all the constants, as the board output may not be final.
@@ -679,7 +786,7 @@ impl<const N: usize> Board<N> {
             i += 2;
         }
 
-        for (row_n, row) in map[..].iter().rev().enumerate() {
+        for (row_n, row) in map_list[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
                 if val == &1 {
                     layout[cal!(row_n, col_n)] = b'Q';

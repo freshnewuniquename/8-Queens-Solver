@@ -3,4 +3,8 @@ target/*
 *repl*
 bench
 src/.goal_board
+<<<<<<< HEAD
 vgcore.*
+=======
+vgcore*
+>>>>>>> main
