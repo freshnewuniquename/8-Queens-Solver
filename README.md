@@ -8,7 +8,7 @@ The search algorithm used in this implementation is depth-first search, an uninf
 
 This 8-Queens solver uses the complete-state formulation, in which the eight pieces are already placed on the board. The solver will try to move the queens to match with the end state inputted. On each action, the solver will move only one of the pieces according to the queen piece movement.
 
-# Usage
+## Usage
 The solver will receive an initial state, and an end state, by reading the files from the given file locations through CLI, or will fallback to the default ./src/init, and ./src/goal files if not provided. The first argument in the CLI will be used for the file location of the init state, and the second argument will be used for the file location of the goal state.
 
 An example for the basic usage of the CLI program.
