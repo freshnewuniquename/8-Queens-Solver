@@ -2,7 +2,6 @@ use std::collections::{BinaryHeap, VecDeque};
 
 #[allow(dead_code)]
 pub trait Search {
-    type DS;
     type Item;
 
     const ABORT_ON_FOUND: bool;
@@ -15,21 +14,12 @@ pub trait Search {
     fn is_informed_search(&self) -> bool {
         Self::IS_INFORMED
     }
-    fn new() -> Self::DS {
-        Self::DS::new()
-    }
-    fn with_capacity(n: usize) -> Self::DS {
-        Self::DS::with_capacity(n)
-    }
-    fn push(&mut self, item: Self::Item) {
-        Self::DS.push(item)
-    }
-    fn pop_next(&mut self) -> Option<Self::Item> {
-        Self::DS.pop()
-    }
-    fn next(&self) -> Option<&Self::Item> {
-        Self::DS.get(0)
-    }
+    fn new() -> Self;
+    fn with_capacity(n: usize) -> Self;
+    fn next(&self) -> Option<&Self::Item>;
+    fn pop_next(&mut self) -> Option<Self::Item>;
+    fn push(&mut self, item: Self::Item);
+    fn len(&self) -> usize;
     /// Functions as a hint for how many moves was made in that one search.
     ///
     /// This is useful for breadth-first search variant, where the search probes layer
@@ -37,6 +27,13 @@ pub trait Search {
     ///
     /// Other searches that does not require this function should just ignore this in
     /// their implementation.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// dijkstra.moves_hint(moves).apply_node_value(val).push(node);
+    /// ```
+    #[must_use]
     fn moves_hint(&mut self, _moves: i8) -> &mut Self {
         self
     }
@@ -50,44 +47,80 @@ pub trait Search {
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.apply_node_value(val).push(node);
+    /// dijkstra.moves_hint(moves).apply_node_value(val).push(node);
     /// ```
+    #[must_use]
     fn apply_node_value(&mut self, _value: usize) -> &mut Self {
         self
     }
 }
 
 // Iterative Depth-first search.
-impl<T> Search for Vec<T> {
+#[allow(dead_code)]
+pub struct DFS<T>(Vec<T>);
+impl<T> Search for DFS<T> {
     type Item = T;
-    type DS = Vec<T>;
 
     const ABORT_ON_FOUND: bool = false;
     const IS_INFORMED: bool = false;
+    
+    fn new() -> Self {
+        DFS(Vec::new())
+    }
+    fn with_capacity(n: usize) -> Self {
+        DFS(Vec::with_capacity(n))
+    }
+    fn next(&self) -> Option<&Self::Item> {
+        self.0.get(self.0.len()-1)
+    }
+    fn pop_next(&mut self) -> Option<Self::Item> {
+        self.0.pop()
+    }
+    fn push(&mut self, item: Self::Item) {
+        self.0.push(item);
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
+
 // Breadth-first search.
-impl<T> Search for VecDeque<T> {
+pub struct BFS<T>(VecDeque<(T, i8)>, i8);
+impl<T> Search for BFS<T> {
     type Item = T;
-    type DS = VecDeque<T>;
 
     const ABORT_ON_FOUND: bool = true;
     const IS_INFORMED: bool = true;
-
-    fn new() -> Self::DS {
-        VecDeque::new()
+    
+    fn new() -> Self {
+        BFS(VecDeque::new(), 0)
     }
-    fn with_capacity(n: usize) -> Self::DS {
-        VecDeque::with_capacity(n)
-    }
-    fn push(&mut self, item: Self::Item) {
-        self.push_back(item);
-    }
-    fn pop_next(&mut self) -> Option<Self::Item> {
-        self.pop_front()
+    fn with_capacity(n: usize) -> Self {
+        BFS(VecDeque::with_capacity(n), 0)
     }
     fn next(&self) -> Option<&Self::Item> {
-        self.get(0)
+        self.0.get(0).map(|x| &x.0)
+    }
+    fn pop_next(&mut self) -> Option<Self::Item> {
+        while let Some(x) = self.0.pop_front() {
+            if x.1 > 1 {
+                self.0.push_back((x.0, x.1-1));
+            } else {
+                return Some(x.0);
+            }
+        }
+        None
+    }
+    fn push(&mut self, item: Self::Item) {
+        self.0.push_back((item, self.1));
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn moves_hint(&mut self, moves: i8) -> &mut Self {
+        self.1 = moves;
+        self
     }
 }
 
