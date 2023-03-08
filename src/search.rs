@@ -15,11 +15,31 @@ pub trait Search {
     fn is_informed_search(&self) -> bool {
         Self::IS_INFORMED
     }
-    fn new() -> Self::DS;
-    fn with_capacity(n: usize) -> Self::DS;
-    fn push(&mut self, item: Self::Item);
-    fn pop_next(&mut self) -> Option<Self::Item>;
-    fn next(&self) -> Option<&Self::Item>;
+    fn new() -> Self::DS {
+        Self::DS::new()
+    }
+    fn with_capacity(n: usize) -> Self::DS {
+        Self::DS::with_capacity(n)
+    }
+    fn push(&mut self, item: Self::Item) {
+        Self::DS.push(item)
+    }
+    fn pop_next(&mut self) -> Option<Self::Item> {
+        Self::DS.pop()
+    }
+    fn next(&self) -> Option<&Self::Item> {
+        Self::DS.get(0)
+    }
+    /// Functions as a hint for how many moves was made in that one search.
+    ///
+    /// This is useful for breadth-first search variant, where the search probes layer
+    /// by layer.
+    ///
+    /// Other searches that does not require this function should just ignore this in
+    /// their implementation.
+    fn moves_hint(&mut self, _moves: i8) -> &mut Self {
+        self
+    }
     /// This function is used to supply the value of the node in an informed search.
     ///
     /// This function will keep the value temporarily, and is consumed on the next .push().
@@ -32,7 +52,7 @@ pub trait Search {
     /// ```
     /// dijkstra.apply_node_value(val).push(node);
     /// ```
-    fn apply_node_value(&mut self, value: usize) -> &mut Self {
+    fn apply_node_value(&mut self, _value: usize) -> &mut Self {
         self
     }
 }
@@ -44,22 +64,6 @@ impl<T> Search for Vec<T> {
 
     const ABORT_ON_FOUND: bool = false;
     const IS_INFORMED: bool = false;
-
-    fn new() -> Self::DS {
-        Vec::new()
-    }
-    fn with_capacity(n: usize) -> Self::DS {
-        Vec::with_capacity(n)
-    }
-    fn push(&mut self, item: Self::Item) {
-        self.push(item);
-    }
-    fn pop_next(&mut self) -> Option<Self::Item> {
-        self.pop()
-    }
-    fn next(&self) -> Option<&Self::Item> {
-        self.get(0)
-    }
 }
 
 // Breadth-first search.
