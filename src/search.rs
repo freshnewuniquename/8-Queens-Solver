@@ -27,7 +27,7 @@ pub trait Search {
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_node_value(val).push(node);
+    /// dijkstra.moves_hint(moves).apply_node_cost(cost).push(node);
     /// ```
     #[must_use]
     fn moves_hint(&mut self, _moves: i8) -> &mut Self {
@@ -43,10 +43,10 @@ pub trait Search {
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_node_value(val).push(node);
+    /// dijkstra.moves_hint(moves).apply_node_cost(cost).push(node);
     /// ```
     #[must_use]
-    fn apply_node_value(&mut self, _value: usize) -> &mut Self {
+    fn apply_node_cost(&mut self, _cost: usize) -> &mut Self {
         self
     }
 }
