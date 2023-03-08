@@ -33,27 +33,23 @@ pub enum Moves {
     Horizontal(Coord, Coord),
     Vertical(Coord, Coord),
     Diagonal(Coord, Coord),
-    ThreeMoves(Coord, Coord),
+    ThreeMoves1(Coord, Coord),
+    ThreeMoves2(Coord, Coord),
+    ThreeMoves3(Coord, Coord),
     NoPossibleMoves,
 }
 
 #[allow(dead_code)]
 impl Moves {
-    pub fn value(&self) -> u16 {
-        use Moves::*;
-        match self {
-            Horizontal(_, _) | Vertical(_, _) | Diagonal(_, _) => 1,
-            ThreeMoves(_, _) => 3,
-            NoPossibleMoves => u16::MAX,
-        }
-    }
     pub fn get_values(&self) -> Option<(Coord, Coord)> {
         use Moves::*;
         match self {
             Horizontal(src, dest)
             | Vertical(src, dest)
             | Diagonal(src, dest)
-            | ThreeMoves(src, dest) => Some((*src, *dest)),
+            | ThreeMoves1(src, dest)
+            | ThreeMoves2(src, dest)
+            | ThreeMoves3(src, dest) => Some((*src, *dest)),
             NoPossibleMoves => None,
         }
     }
@@ -350,10 +346,6 @@ impl<const N: usize> Board<N> {
     }
     #[inline(always)]
     pub fn solve(&mut self) -> Vec<Moves> {
-        // Breadth-first search cannot be used in this implementation, because
-        // each search returns more than one moves.
-        // For example, It may return Vertical and Diagonal in one go.
-
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
 
         let mut ds = <search::BFS<_> as Search>::with_capacity(6467); // Uses 6467 on ./src/init3.
@@ -388,9 +380,8 @@ impl<const N: usize> Board<N> {
 
         while let Some((queens, defined_dest, solve_idx, moves)) = ds.pop_next() {
             if solve_idx == N {
-                let cur_moves_value = moves.iter().fold(0, |acc, x: &Moves| acc + x.value());
-                if cur_moves_value < lowest_moves {
-                    lowest_moves = cur_moves_value;
+                if lowest_moves > moves.len() as u16 {
+                    lowest_moves = moves.len() as u16;
                     lowest_moves_list = moves;
                 }
                 if ds.is_abort_on_found() {
@@ -398,6 +389,10 @@ impl<const N: usize> Board<N> {
                 } else {
                     continue;
                 }
+            }
+            if lowest_moves <= moves.len() as u16 {
+                // Pruning.
+                continue;
             }
             let mut next_solve_idx = solve_idx + 1;
             while next_solve_idx < N && solved[next_solve_idx].row == -1 {
@@ -714,9 +709,9 @@ impl<const N: usize> Board<N> {
         // TODO: check if path exist.
         let path_exist = true;
         if path_exist {
-            moves.push(Moves::ThreeMoves(src, dest));
-            moves.push(Moves::ThreeMoves(src, dest));
-            moves.push(Moves::ThreeMoves(src, dest));
+            moves.push(Moves::ThreeMoves1(src, dest));
+            moves.push(Moves::ThreeMoves2(src, dest));
+            moves.push(Moves::ThreeMoves3(src, dest));
             3
         } else {
             -1
