@@ -368,6 +368,7 @@ impl<const N: usize> Board<N> {
         // Capacity usage analysis. Will only be used in debug mode.
         #[allow(unused_mut)]
         let mut _max_ds_len = 0;
+        let mut _ops = 0;
 
         let mut solve_idx = 0;
         while solve_idx < N && solved[solve_idx].row == -1 {
@@ -379,6 +380,10 @@ impl<const N: usize> Board<N> {
         let mut lowest_moves_list = Vec::new();
 
         while let Some((queens, defined_dest, solve_idx, moves)) = ds.pop_next() {
+            #[cfg(debug_assertions)]
+            {
+                _ops += 1;
+            }
             if solve_idx == N {
                 if lowest_moves > moves.len() as u16 {
                     lowest_moves = moves.len() as u16;
@@ -439,6 +444,7 @@ impl<const N: usize> Board<N> {
         #[cfg(debug_assertions)]
         {
             dbg!(_max_ds_len);
+            dbg!(_ops);
         }
         lowest_moves_list
     }
