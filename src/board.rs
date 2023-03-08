@@ -353,8 +353,9 @@ impl<const N: usize> Board<N> {
         // Breadth-first search cannot be used in this implementation, because
         // each search returns more than one moves.
         // For example, It may return Vertical and Diagonal in one go.
-        let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
+        // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
         // let mut ds = <search::BFS<_> as Search>::with_capacity(6467); // Uses 6467 on ./src/init3.
+        let mut ds = <search::Dijkstra<_> as Search>::with_capacity(6201); // Uses 6201 on ./src/init3
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut solved = Self::get_queens_pos(self.goal_state);
@@ -415,9 +416,9 @@ impl<const N: usize> Board<N> {
                     if moves != -1 {
                         defined_dest_new[i] = solve_idx as i8;
                         queens_new[i] = solved[solve_idx];
-                        ds.moves_hint(moves).apply_node_value(0).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
+                        ds.moves_hint(moves).apply_node_cost(moves_new.len()).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                     } else {
-                        ds.moves_hint(0).apply_node_value(0).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
+                        ds.moves_hint(0).apply_node_cost(moves_new.len()).push((queens_new, defined_dest_new, next_solve_idx, moves_new));
                     }
                 }
             }
@@ -698,6 +699,8 @@ impl<const N: usize> Board<N> {
         // TODO: check if path exist.
         let path_exist = true;
         if path_exist {
+            moves.push(Moves::ThreeMoves(src, dest));
+            moves.push(Moves::ThreeMoves(src, dest));
             moves.push(Moves::ThreeMoves(src, dest));
             3
         } else {

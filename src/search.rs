@@ -1,4 +1,5 @@
 use std::collections::{BinaryHeap, VecDeque};
+use std::cmp::{Eq, PartialEq, Ord, PartialOrd};
 
 #[allow(dead_code)]
 pub trait Search {
@@ -119,6 +120,53 @@ impl<T> Search for BFS<T> {
 }
 
 // Dijkstra's algorithm
-// impl<T> Search for BinaryHeap<T> {
+pub struct Dijkstra<T>(BinaryHeap<DijkstraElem<T>>, usize);
+pub struct DijkstraElem<T>(T, usize);
 
-// }
+// Convert a max-heap to a min-heap.
+impl<T> Ord for DijkstraElem<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        other.1.cmp(&self.1)
+    }
+}
+impl<T> PartialOrd for DijkstraElem<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(std::cmp::Ord::cmp(&self, &other))
+    }
+}
+
+impl<T> Eq for DijkstraElem<T> {}
+impl<T> PartialEq for DijkstraElem<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.1 == other.1
+    }
+}
+
+impl<T> Search for Dijkstra<T> {
+    type Item = T;
+
+    const ABORT_ON_FOUND: bool = true;
+    
+    fn new() -> Self {
+        Dijkstra(BinaryHeap::new(), 0)
+    }
+    fn with_capacity(n: usize) -> Self {
+        Dijkstra(BinaryHeap::with_capacity(n), 0)
+    }
+    fn next(&self) -> Option<&Self::Item> {
+        self.0.peek().map(|x| &x.0)
+    }
+    fn pop_next(&mut self) -> Option<Self::Item> {
+        self.0.pop().map(|x| x.0)
+    }
+    fn push(&mut self, item: Self::Item) {
+        self.0.push(DijkstraElem(item, self.1));
+    }
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+    fn apply_node_cost(&mut self, value: usize) -> &mut Self {
+        self.1 = value;
+        self
+    }
+}
