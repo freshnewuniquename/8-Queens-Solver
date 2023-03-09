@@ -85,6 +85,16 @@ impl std::fmt::Debug for Coord {
     }
 }
 
+impl std::convert::From<&str> for Coord {
+    fn from(value: &str) -> Self {
+        let bytes = value.as_bytes();
+        Coord {
+            row: value[1..].parse::<i8>().unwrap() - 1,
+            col: (bytes[0] - b'a') as i8,
+        }
+    }
+}
+
 // TODO: Maybe generate all moveable moves so that an additional Coord type is not required.
 // TOOO: List out the 3-moves moves.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -401,7 +411,8 @@ impl<const N: usize> Board<N> {
                 }
             }
         }
-        queens_pos.sort_unstable();
+        queens_pos.sort_unstable_by_key(|x| x.row);
+        queens_pos.sort_unstable_by_key(|x| x.col);
         queens_pos
     }
     #[inline(always)]
@@ -427,8 +438,10 @@ impl<const N: usize> Board<N> {
 
         // Capacity usage analysis. Will only be used in debug mode.
         #[allow(unused_mut)]
-        let mut _max_ds_len = 0;
-        let mut _ops = 0;
+        let mut _nodes_found = 1; // Including the root node.
+        let mut _explored = 0;
+        let mut _pruned = 0;
+        let mut _max_frontier_len = 0;
 
         let mut solve_idx = 0;
         while solve_idx < N && solved[solve_idx].row == -1 {
@@ -442,7 +455,7 @@ impl<const N: usize> Board<N> {
         while let Some((queens, defined_dest, solve_idx, moves)) = ds.pop_next() {
             #[cfg(debug_assertions)]
             {
-                _ops += 1;
+                _explored += 1;
             }
             if solve_idx == N {
                 if lowest_moves > moves.len() as u16 {
@@ -457,6 +470,10 @@ impl<const N: usize> Board<N> {
             }
             if lowest_moves <= moves.len() as u16 {
                 // Pruning.
+                #[cfg(debug_assertions)]
+                {
+                    _pruned += 1;
+                }
                 continue;
             }
             let mut next_solve_idx = solve_idx + 1;
@@ -493,18 +510,21 @@ impl<const N: usize> Board<N> {
                             moves_new,
                         ));
                     }
+                    #[cfg(debug_assertions)]
+                    {
+                        _nodes_found += 1;
+                    }
                 }
             }
             #[cfg(debug_assertions)]
             {
-                _max_ds_len = _max_ds_len.max(ds.len());
+                _max_frontier_len = _max_frontier_len.max(ds.len());
             }
         }
 
         #[cfg(debug_assertions)]
         {
-            dbg!(_max_ds_len);
-            dbg!(_ops);
+            dbg!(_nodes_found, _explored, _pruned, _max_frontier_len);
         }
         lowest_moves_list
     }
