@@ -54,6 +54,7 @@ pub trait Search {
 
 // Iterative Depth-first search.
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct DFS<T>(Vec<T>);
 impl<T> Search for DFS<T> {
     type Item = T;
@@ -81,6 +82,7 @@ impl<T> Search for DFS<T> {
 }
 
 // Breadth-first search.
+#[derive(Debug)]
 pub struct BFS<T>(VecDeque<(T, i8)>, i8);
 impl<T> Search for BFS<T> {
     type Item = T;
@@ -119,7 +121,9 @@ impl<T> Search for BFS<T> {
 }
 
 // Dijkstra's algorithm
+#[derive(Debug)]
 pub struct Dijkstra<T>(BinaryHeap<DijkstraElem<T>>, usize);
+#[derive(Debug)]
 pub struct DijkstraElem<T>(T, usize);
 
 // Convert a max-heap to a min-heap.

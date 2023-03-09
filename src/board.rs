@@ -524,7 +524,9 @@ impl<const N: usize> Board<N> {
 
         #[cfg(debug_assertions)]
         {
-            dbg!(_nodes_found, _explored, _pruned, _max_frontier_len);
+            // Not adding .clear() to the trait, so this is done manually.
+            while let Some(_) = ds.pop_next() {}
+            dbg!(ds, _nodes_found, _explored, _pruned, _max_frontier_len);
         }
         lowest_moves_list
     }
