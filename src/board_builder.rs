@@ -142,6 +142,7 @@ impl<'a, const N: usize> BoardBuilder<'a, N> {
         set(self.init_data, &mut init_state)?;
 
         if N != 8 || !self.goal_data.is_empty() {
+            goal_state = [[0; N]; N];
             set(self.goal_data, &mut goal_state)?;
         }
 
