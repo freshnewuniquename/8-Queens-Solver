@@ -759,21 +759,101 @@ impl<const N: usize> Board<N> {
             }
         }
 
-        #[cfg(debug_assertions)]
-        unsafe {
-            // Not adding .clear() to the trait, so this is done manually.
-            ds = Search::new();
-
-            dbg!(
-                ds,
-                _nodes_generated,
-                _explored,
-                _pruned,
-                _max_frontier_len,
-                _stuck_nodes,
-                _stuck_node_loop_arounds,
-                μs_used_searching_is_blocked,
+        // #[cfg(debug_assertions)]
+        // {
+        //     ds.clear();
+        //     dbg!(
+        //         ds,
+        //         _nodes_generated,
+        //         _explored,
+        //         _pruned,
+        //         _max_frontier_len,
+        //         _stuck_nodes,
+        //         _stuck_node_loop_arounds,
+        //         μs_used_searching_is_blocked,
+        //     );
+        //     dbg!(_nodes_found, _explored, _pruned, _max_frontier_len);
+        // }
+        (lowest_moves_list, _max_frontier_len)
+    }
+    pub fn gen_test_cases(&mut self) {
+        let mut dfs =
+            <search::DFS<([Coord; N], [i8; N], usize, Vec<Moves>, SearchStatus)> as Search>::with_capacity(32); // Seems to only used 29 max.
+        let mut bfs =
+            <search::BFS<([Coord; N], [i8; N], usize, Vec<Moves>, SearchStatus)> as Search>::with_capacity(28373);
+        let mut djs =
+            <search::Dijkstra<([Coord; N], [i8; N], usize, Vec<Moves>, SearchStatus)> as Search>::with_capacity(
+                27414,
             );
+        let mut asr =  <search::AStar<([Coord; N], [i8; N], usize, Vec<Moves>, SearchStatus)> as Search>::with_capacity(
+        7622,
+        );
+
+        let mut max1 = 0;
+        let mut max2 = 0;
+        let mut max3 = 0;
+        let mut max4 = 0;
+
+        let stdout = std::io::stdout();
+        let mut stdout = stdout.lock();
+
+        let mut rng = rand::thread_rng();
+        self.init_state = [[0; N]; N];
+        let s: *mut u8 = &mut self.init_state[0][0];
+        unsafe {
+            loop {
+                use std::io::Write;
+                let idx = rand::seq::index::sample(&mut rng, 64, 8);
+                for x in idx.iter() {
+                    *s.add(x) = 1;
+                }
+                let res1 = self.solve(&mut dfs);
+                let res2 = self.solve(&mut bfs);
+                let res3 = self.solve(&mut djs);
+                let res4 = self.solve(&mut asr);
+
+                if res1.0.len() != res2.0.len()
+                    || res3.0.len() != res1.0.len()
+                    || res4.0.len() != res1.0.len()
+                {
+                    writeln!(
+                        stdout,
+                        "uhoh----{:?}\n",
+                        Self::get_queens_pos(self.init_state)
+                    )
+                    .unwrap();
+                }
+                let mut changed = false;
+                if res1.1 > max1 {
+                    max1 = res1.1;
+                    changed = true;
+                }
+                if res2.1 > max2 {
+                    max2 = res2.1;
+                    changed = true;
+                }
+                if res3.1 > max3 {
+                    max3 = res3.1;
+                    changed = true;
+                }
+                if res4.1 > max4 {
+                    max4 = res4.1;
+                    changed = true;
+                }
+                if changed {
+                    writeln!(stdout, "{:?}", Self::get_queens_pos(self.init_state)).unwrap();
+                    writeln!(stdout, "dfs:{max1} bfs:{max2} djs:{max3}\n").unwrap();
+                }
+
+                dfs.clear();
+                bfs.clear();
+                djs.clear();
+                asr.clear();
+
+                for x in idx.iter() {
+                    *s.add(x) = 0;
+                }
+            }
         }
         lowest_moves_list
     }
