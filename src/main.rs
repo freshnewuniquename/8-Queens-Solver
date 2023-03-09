@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::{stdout, Read, Write},
     path::{Component, Path},
+    time::Instant,
 };
 mod board;
 mod board_builder;
@@ -78,6 +79,7 @@ fn main() {
     let mut files_read_count = 0;
     let mut read = 0;
     let mut quiet = false;
+    let mut benchmark = cfg!(debug_assertions);
 
     let exec_name = cli_options.next().unwrap_or_default();
     let exec_name = exec_name.to_string_lossy();
@@ -88,13 +90,18 @@ fn main() {
             if option.starts_with('-') {
                 let option = option.split_once('=').unwrap_or((option, ""));
 
+                // TODO: Adds support for the grouping of small options.
                 match (option.0, option.1) {
-                    ("--help" | "-h", _) => {
+                    ("-b" | "--bench", _) => {
+                        benchmark = true;
+                    }
+                    ("-h" | "--help", _) => {
                         println!(
                             "Usage: {exec_name} [OPTIONS] INPUT\n{}",
                             concat!(
                                 "Solves a N-Queen puzzle from the given input.\n\n",
                                 "Options:\n",
+                                "  -b,  --bench\t\tDisplays the running time for some parts of the program.",
                                 "  -h, --help\t\tDisplays this message.\n",
                                 "      --trust\t\tRead the following input file without performing any checks (Not recommended). ",
                                 "  -q, --quiet\t\tSupresses the program output."
@@ -161,6 +168,8 @@ fn main() {
         ""
     };
 
+    let start = Instant::now();
+
     // TODO: allow user to set the board size.
     let board = board_builder::BoardBuilder::<N>::new()
         .trust(trustable)
@@ -178,9 +187,41 @@ fn main() {
         }
     };
 
+    if benchmark && !quiet {
+        let elapsed = start.elapsed();
+        println!(
+            "\nTime used for input reading: {}ms ({}μs)",
+            elapsed.as_millis(),
+            elapsed.as_micros()
+        );
+    }
+
+    let start = std::time::Instant::now();
+
     let moves = board.solve();
+
+    if benchmark && !quiet {
+        let elapsed = start.elapsed();
+        println!(
+            "\nTime used for solve(): {}ms ({}μs)",
+            elapsed.as_millis(),
+            elapsed.as_micros()
+        );
+    }
+
     if !quiet {
+        let start = std::time::Instant::now();
+
         println!("{board}\n\nInitial state\n\n");
         board.replay_moves(&moves);
+
+        if benchmark {
+            let elapsed = start.elapsed();
+            println!(
+                "\nTime used for replaying moves: {}ms ({}μs)",
+                elapsed.as_millis(),
+                elapsed.as_micros()
+            );
+        }
     }
 }
