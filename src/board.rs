@@ -419,9 +419,9 @@ impl<const N: usize> Board<N> {
     pub fn solve(&mut self) -> Vec<Moves> {
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
 
-        let mut ds = <search::BFS<_> as Search>::with_capacity(6467); // Uses 6467 on ./src/init3.
+        let mut ds = <search::BFS<_> as Search>::with_capacity(28406); // Uses 28406 on ./src/hard1.
 
-        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(6201); // Uses 6201 on ./src/init3
+        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(28283); // Uses 28283 on ./src/hard1
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut solved = Self::get_queens_pos(self.goal_state);
