@@ -604,13 +604,16 @@ impl<const N: usize> Board<N> {
                         top_left_slope = *x;
                     }
                 }
-            } else if x.col > left.col {
-                if left.row - x.row == x.col - left.col && x.row > bot_right_slope.row {
-                    bot_right_slope = *x;
-                }
-            } else {
-                if left.row - x.row == left.col - x.col && x.row > bot_left_slope.row {
-                    bot_left_slope = *x;
+            } else if x.row < left.row {
+                // x.row == left.row will be ignored
+                if x.col > left.col {
+                    if left.row - x.row == x.col - left.col && x.row > bot_right_slope.row {
+                        bot_right_slope = *x;
+                    }
+                } else {
+                    if left.row - x.row == left.col - x.col && x.row > bot_left_slope.row {
+                        bot_left_slope = *x;
+                    }
                 }
             }
         }
@@ -618,8 +621,6 @@ impl<const N: usize> Board<N> {
         let is_inbetween = |low, mid, high| low < mid && mid < high;
         let is_inbetween_unordered =
             |end, mid, end2| is_inbetween(end, mid, end2) || is_inbetween(end2, mid, end);
-
-        // TODO: might try to see if storing the pieces that have the same row/column in a vec is more performant.
 
         // Trying min=1.
         if src.row == dest.row {
@@ -695,7 +696,7 @@ impl<const N: usize> Board<N> {
                 orig.col + (orig.row - row)
             } else {
                 // Bottom left
-                orig.col - (orig.col - row)
+                orig.col - (orig.row - row)
             }
         };
 
@@ -714,20 +715,30 @@ impl<const N: usize> Board<N> {
         };
         macro_rules! enter_slope {
             (vertically $capture: expr) => {{
-                let (fn1, _, fn3, a, b, c, d, e, f) = $capture;
-                let intersection = fn1(b, c.col);
-                enter_slope!(fn3, a, c, d, e, intersection, f, row, col, Vertical)
+                let (fn1, _, fn3, ma, sl, r, sr, d, mo) = $capture;
+                let intersection = Coord {
+                    row: fn1(sl, r.col),
+                    col: r.col,
+                };
+                enter_slope!(fn3, ma, r, sr, d, intersection, mo, row, col, Vertical)
             }};
             (horizontally $capture: expr) => {{
-                let (_, fn2, fn3, a, b, c, d, e, f) = $capture;
-                let intersection = fn2(b, c.row);
-                enter_slope!(fn3, a, c, d, e, intersection, f, col, row, Horizontal)
+                let (_, fn2, fn3, ma, sl, r, sr, d, mo) = $capture;
+                let intersection = Coord {
+                    row: r.row,
+                    col: fn2(sl, r.row),
+                };
+                enter_slope!(fn3, ma, r, sr, d, intersection, mo, col, row, Horizontal)
             }};
             ($is_inbetween_unordered: expr, $map_list: expr, $right: expr, $src: expr, $dest: expr, $intersection: expr, $moves: expr, $main_dir: tt, $opp_dir: tt, $direction: tt) => {{
                 let mut valid = true;
                 for x in $map_list {
                     if x.$opp_dir == $right.$opp_dir
-                        && $is_inbetween_unordered($intersection, x.$main_dir, $right.$main_dir)
+                        && $is_inbetween_unordered(
+                            $intersection.$main_dir,
+                            x.$main_dir,
+                            $right.$main_dir,
+                        )
                     {
                         valid = false;
                         break;
@@ -736,18 +747,13 @@ impl<const N: usize> Board<N> {
 
                 use Moves::*;
                 if valid {
-                    let intersection = Coord {
-                        $main_dir: $intersection,
-                        $opp_dir: $right.$opp_dir,
-                    };
-
                     let moves = unsafe { $moves.as_mut().unwrap() };
                     if $right == $src {
-                        moves.push($direction($src, intersection));
-                        moves.push(Diagonal(intersection, $dest));
+                        moves.push($direction($src, $intersection));
+                        moves.push(Diagonal($intersection, $dest));
                     } else {
-                        moves.push(Diagonal($src, intersection));
-                        moves.push($direction(intersection, $dest));
+                        moves.push(Diagonal($src, $intersection));
+                        moves.push($direction($intersection, $dest));
                     }
                 }
                 valid
@@ -759,42 +765,39 @@ impl<const N: usize> Board<N> {
             if enter_slope!(vertically capture(bot_right_slope)) {
                 return 2;
             }
-        // }
-        } else if top_right_slope.col >= right.col {
-            // if top_right_slope.col > right.col {
+        }
+        if top_right_slope.col > right.col {
             if enter_slope!(vertically capture(top_right_slope)) {
                 return 2;
             }
-        // }
-        } else if top_right_slope.row >= right.row {
-            // if top_right_slope.row > right.row {
+        }
+        if is_inbetween(left.row, right.row, top_right_slope.row) {
             if enter_slope!(horizontally capture(top_right_slope)) {
                 return 2;
             }
-        // }
-        } else if top_left_slope.row >= right.row {
-            // if top_left_slope.row > right.row {
+        }
+        if is_inbetween(left.row, right.row, top_left_slope.row) {
             if enter_slope!(horizontally capture(top_left_slope)) {
                 return 2;
             }
-        // }
-        } else if bot_left_slope.row >= right.row {
-            // if bot_left_slope.row > right.row {
+        }
+        if is_inbetween(bot_left_slope.row, right.row, left.row) {
             if enter_slope!(horizontally capture(bot_left_slope)) {
                 return 2;
             }
-        // }
-        } else if bot_right_slope.row >= right.row {
-            // if bot_right_slope.row > right.row {
+        }
+        if is_inbetween(bot_right_slope.row, right.row, left.row) {
             if enter_slope!(horizontally capture(bot_right_slope)) {
                 return 2;
             }
         }
+
         // TODO: Diagonal to Diagonal move
 
         // TODO: check if path exist.
         let path_exist = true;
         if path_exist {
+            // Might not be max 3 moves...
             moves.push(Moves::ThreeMoves1(src, dest));
             moves.push(Moves::ThreeMoves2(src, dest));
             moves.push(Moves::ThreeMoves3(src, dest));
