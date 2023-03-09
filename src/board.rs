@@ -12,6 +12,66 @@ pub struct Coord {
     pub col: i8,
 }
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+enum BoardPrint {
+    Empty = 0,
+    Q,
+    Pound,         // Move from
+    VerticalSlash, // Move path
+    BackwardSlash, // Move path
+    ForwardSlash,  // Move path
+    Hyphen,        // Move path
+}
+
+impl BoardPrint {
+    fn new(id: u8) -> Self {
+        id.into()
+    }
+    fn char_to_u8(self) -> u8 {
+        let c: char = self.into();
+        c as u8
+    }
+}
+
+impl From<u8> for BoardPrint {
+    fn from(value: u8) -> Self {
+        use BoardPrint::*;
+        match value {
+            0 => Empty,
+            1 => Q,
+            2 => Pound,
+            3 => VerticalSlash,
+            4 => BackwardSlash,
+            5 => ForwardSlash,
+            6 => Hyphen,
+            _ => todo!("Unknown symbol."),
+        }
+    }
+}
+
+impl From<BoardPrint> for char {
+    fn from(value: BoardPrint) -> Self {
+        use BoardPrint::*;
+        match value {
+            Empty => ' ',
+            Q => 'Q',
+            Pound => '#',
+            VerticalSlash => '|',
+            BackwardSlash => '\\',
+            ForwardSlash => '/',
+            Hyphen => '-',
+        }
+    }
+}
+
+impl std::fmt::Display for BoardPrint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c: char = (*self).into();
+        write!(f, "{}", c)
+    }
+}
+
 impl std::fmt::Display for Coord {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // TODO: deal with board size > 'z'.
@@ -723,15 +783,70 @@ impl<const N: usize> Board<N> {
             -1
         }
     }
-    pub fn print_moves(&mut self, moves: &Vec<Moves>) {
+    pub fn replay_moves(&mut self, moves: &Vec<Moves>) {
         let mut map = self.init_state;
         for (i, x) in moves.iter().enumerate() {
+            let mut new_map = map;
             if let Some((src, dest)) = x.get_values() {
                 map[src.row as usize][src.col as usize] = 0;
                 map[dest.row as usize][dest.col as usize] = 1;
+                new_map = map;
+
+                new_map[src.row as usize][src.col as usize] = BoardPrint::Pound as u8;
+                new_map[dest.row as usize][dest.col as usize] = BoardPrint::Q as u8;
+
+                let (min, max) = if src > dest { (dest, src) } else { (src, dest) };
+
+                match x {
+                    Moves::Diagonal(_, _) => {
+                        let mut src = src;
+                        if src.row < dest.row {
+                            src.row += 1;
+                        } else {
+                            src.row -= 1;
+                        }
+
+                        if src.col < dest.col {
+                            src.col += 1;
+                        } else {
+                            src.col -= 1;
+                        }
+
+                        while src.row != dest.row {
+                            new_map[src.row as usize][src.col as usize] =
+                                if (src.row > dest.row) == (src.col > dest.col) {
+                                    BoardPrint::ForwardSlash as u8
+                                } else {
+                                    BoardPrint::BackwardSlash as u8
+                                };
+                            if src.row < dest.row {
+                                src.row += 1;
+                            } else {
+                                src.row -= 1;
+                            }
+
+                            if src.col < dest.col {
+                                src.col += 1;
+                            } else {
+                                src.col -= 1;
+                            }
+                        }
+                    }
+                    Moves::Vertical(_, _) => {
+                        for y in min.row + 1..max.row {
+                            new_map[y as usize][src.col as usize] = BoardPrint::VerticalSlash as u8;
+                        }
+                    }
+                    Moves::Horizontal(_, _) => {
+                        for x in min.col + 1..max.col {
+                            new_map[src.row as usize][x as usize] = BoardPrint::Hyphen as u8;
+                        }
+                    }
+                    _ => {}
+                }
             }
 
-            println!("{}\n", Self::to_string_inner(&map));
+            println!("{}\n", Self::to_string_inner(&new_map));
             println!("Move {}: {x:?}\n\n", i + 1);
         }
     }
@@ -774,7 +889,7 @@ impl<const N: usize> Board<N> {
 
         for y in 0..N {
             for x in ((y + 1) % 2..N).step_by(2) {
-                layout[cal!(y, x)] = b'*';
+                layout[cal!(y, x)] = b'.';
             }
         }
 
@@ -819,8 +934,8 @@ impl<const N: usize> Board<N> {
 
         for (row_n, row) in map_list[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
-                if val == &1 {
-                    layout[cal!(row_n, col_n)] = b'Q';
+                if *val != 0 {
+                    layout[cal!(row_n, col_n)] = BoardPrint::new(*val).char_to_u8();
                 }
             }
         }

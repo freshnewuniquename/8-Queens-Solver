@@ -180,7 +180,7 @@ fn main() {
 
     let moves = board.solve();
     if !quiet {
-        println!("{board}\n\n");
-        board.print_moves(&moves);
+        println!("{board}\n\nInitial state\n\n");
+        board.replay_moves(&moves);
     }
 }
