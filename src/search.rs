@@ -28,7 +28,7 @@ pub trait Search {
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_node_cost(cost).push(node);
+    /// dijkstra.moves_hint(moves).apply_path_cost(cost).push(node);
     /// ```
     #[must_use]
     fn moves_hint(&mut self, _moves: i8) -> &mut Self {
@@ -38,16 +38,16 @@ pub trait Search {
     ///
     /// This function will keep the value temporarily, and is consumed on the next .push().
     ///
-    /// NOTE: Make sure to use this function before a .push(), or a panic will occur,
-    ///       or will cause undefined behaviour on release mode.
+    /// NOTE: Make sure to use this function before a .push(), or else it will cause
+    ///       undefined behaviour.
     ///
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_node_cost(cost).push(node);
+    /// dijkstra.moves_hint(moves).apply_path_cost(cost).push(node);
     /// ```
     #[must_use]
-    fn apply_node_cost(&mut self, _cost: usize) -> &mut Self {
+    fn apply_path_cost(&mut self, _cost: usize) -> &mut Self {
         self
     }
 }
@@ -168,7 +168,7 @@ impl<T> Search for Dijkstra<T> {
     fn len(&self) -> usize {
         self.0.len()
     }
-    fn apply_node_cost(&mut self, value: usize) -> &mut Self {
+    fn apply_path_cost(&mut self, value: usize) -> &mut Self {
         self.1 = value;
         self
     }

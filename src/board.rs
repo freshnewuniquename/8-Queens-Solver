@@ -496,14 +496,14 @@ impl<const N: usize> Board<N> {
                     if moves != -1 {
                         defined_dest_new[i] = solve_idx as i8;
                         queens_new[i] = solved[solve_idx];
-                        ds.moves_hint(moves).apply_node_cost(moves_new.len()).push((
+                        ds.moves_hint(moves).apply_path_cost(moves_new.len()).push((
                             queens_new,
                             defined_dest_new,
                             next_solve_idx,
                             moves_new,
                         ));
                     } else {
-                        ds.moves_hint(0).apply_node_cost(moves_new.len()).push((
+                        ds.moves_hint(0).apply_path_cost(moves_new.len()).push((
                             queens_new,
                             defined_dest_new,
                             next_solve_idx,
