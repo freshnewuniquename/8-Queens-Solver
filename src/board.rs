@@ -6,10 +6,39 @@ pub struct Board<const N: usize = 8> {
     pub(super) goal_state: [[u8; N]; N],
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default, Hash)]
 pub struct Coord {
     pub row: i8,
     pub col: i8,
+}
+
+impl Coord {
+    fn abs_diff(self, other: Self) -> u8 {
+        self.row.abs_diff(other.row) + self.col.abs_diff(other.col)
+    }
+}
+
+impl std::fmt::Display for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: deal with board size > 'z'.
+        write!(f, "{}{}", (self.col as u8 + b'a') as char, self.row + 1)
+    }
+}
+
+impl std::fmt::Debug for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
+impl std::convert::From<&str> for Coord {
+    fn from(value: &str) -> Self {
+        let bytes = value.as_bytes();
+        Coord {
+            row: value[1..].parse::<i8>().unwrap() - 1,
+            col: (bytes[0] - b'a') as i8,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -72,28 +101,6 @@ impl std::fmt::Display for BoardPrint {
     }
 }
 
-impl std::fmt::Display for Coord {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // TODO: deal with board size > 'z'.
-        write!(f, "{}{}", (self.col as u8 + b'a') as char, self.row + 1)
-    }
-}
-
-impl std::fmt::Debug for Coord {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-
-impl std::convert::From<&str> for Coord {
-    fn from(value: &str) -> Self {
-        let bytes = value.as_bytes();
-        Coord {
-            row: value[1..].parse::<i8>().unwrap() - 1,
-            col: (bytes[0] - b'a') as i8,
-        }
-    }
-}
 
 // TODO: Maybe generate all moveable moves so that an additional Coord type is not required.
 // TOOO: List out the 3-moves moves.
