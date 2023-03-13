@@ -116,6 +116,9 @@ pub enum Moves {
     NoPossibleMoves,
 }
 
+#[allow(non_upper_case_globals)]
+static mut μs_used_searching_is_blocked: u128 = 0;
+
 #[allow(dead_code)]
 impl Moves {
     pub fn get_values(&self) -> Option<(Coord, Coord)> {
@@ -530,10 +533,10 @@ impl<const N: usize> Board<N> {
         }
 
         #[cfg(debug_assertions)]
-        {
+        unsafe {
             // Not adding .clear() to the trait, so this is done manually.
             while let Some(_) = ds.pop_next() {}
-            dbg!(ds, _nodes_found, _explored, _pruned, _max_frontier_len);
+            dbg!(ds, _nodes_found, _explored, _pruned, _max_frontier_len, μs_used_searching_is_blocked);
         }
         lowest_moves_list
     }
@@ -803,8 +806,90 @@ impl<const N: usize> Board<N> {
 
         // TODO: Diagonal to Diagonal move
 
+        let mut board = [[0; N]; N];
+
+        for x in map_list.iter() {
+            board[x.row as usize][x.col as usize] = 1;
+        }
+
+        let mut ds = <search::AStar<Coord> as Search>::with_capacity(N * N);
+        let mut visited = [[false; N]; N];
+        let mut path_exist = false;
+
+        let t = std::time::Instant::now();
+        visited[src.row as usize][src.col as usize] = true;
+        ds.push(src);
+
+        while let Some(node) = ds.pop_next() {
+            let mut push_not_visited = |node: Coord, parent: Coord| {
+                if !visited[node.row as usize][node.col as usize] {
+                    visited[node.row as usize][node.col as usize] = true;
+                    if board[node.row as usize][node.col as usize] == 0 {
+                        ds.apply_path_cost(node.abs_diff(parent) as usize)
+                            .push(node);
+                    }
+                }
+            };
+
+            if node == dest {
+                path_exist = true;
+            } else {
+                let left_ok = node.col > 0;
+                let right_ok = node.col + 1 < N as i8;
+                let top_ok = node.row + 1 < N as i8;
+                let bot_ok = node.row > 0;
+
+                // No path cost, just estimated heuristic. Could've used Dijkstra too.
+                if top_ok {
+                    if left_ok {
+                        let top_left = Coord {
+                            row: node.row + 1,
+                            col: node.col - 1,
+                        };
+                        push_not_visited(top_left, node);
+                    }
+                    if right_ok {
+                        let top_right = Coord {
+                            row: node.row + 1,
+                            col: node.col + 1,
+                        };
+                        push_not_visited(top_right, node);
+                    }
+                    let top = Coord {
+                        row: node.row + 1,
+                        col: node.col,
+                    };
+                    push_not_visited(top, node);
+                }
+                if bot_ok {
+                    if left_ok {
+                        let bot_left = Coord {
+                            row: node.row - 1,
+                            col: node.col - 1,
+                        };
+                        push_not_visited(bot_left, node);
+                    }
+                    if right_ok {
+                        let bot_right = Coord {
+                            row: node.row - 1,
+                            col: node.col + 1,
+                        };
+                        push_not_visited(bot_right, node);
+                    }
+                    let bot = Coord {
+                        row: node.row - 1,
+                        col: node.col,
+                    };
+                    push_not_visited(bot, node);
+                }
+            }
+        }
+
+        unsafe {
+            μs_used_searching_is_blocked += t.elapsed().as_micros();
+        }
+
         // TODO: check if path exist.
-        let path_exist = true;
         if path_exist {
             // Might not be max 3 moves...
             moves.push(Moves::ThreeMoves1(src, dest));
@@ -812,7 +897,9 @@ impl<const N: usize> Board<N> {
             moves.push(Moves::ThreeMoves3(src, dest));
             3
         } else {
-            -1
+            // println!("{map_list:?}");
+            // println!("{src}->{dest}\n");
+            0
         }
     }
     pub fn replay_moves(&mut self, moves: &Vec<Moves>) {
