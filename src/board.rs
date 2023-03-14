@@ -427,6 +427,31 @@ impl<const N: usize> Board<N> {
     }
     #[inline(always)]
     pub fn solve(&mut self) -> Vec<Moves> {
+        // Iterative deepening.
+        const ENABLE_ITERATIVE_DEEPENING: bool = false;
+
+        if ENABLE_ITERATIVE_DEEPENING {
+            for x in 1..N as u16 * 2 {
+                let t = std::time::Instant::now();
+                let res = self.solve_inner(x);
+                let t = t.elapsed();
+                println!(
+                    "Depth {x} - Time used: {}ms ({}μs)",
+                    t.as_millis(),
+                    t.as_micros()
+                );
+                if !res.is_empty() {
+                    return res;
+                }
+            }
+            vec![]
+        } else {
+            // Could even make do with just N*4, or N*3 actually.
+            self.solve_inner(N as u16 * 5)
+        }
+    }
+    #[inline(always)]
+    pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
 
         let mut ds = <search::BFS<_> as Search>::with_capacity(28406); // Uses 28406 on ./src/hard1.
