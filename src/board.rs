@@ -427,8 +427,12 @@ impl<const N: usize> Board<N> {
                 }
             }
         }
-        queens_pos.sort_unstable_by_key(|x| x.row);
-        queens_pos.sort_unstable_by_key(|x| x.col);
+        #[cfg(debug_assertions)]
+        {
+            // Arranges it nicely for a better debugging experience.
+            queens_pos.sort_unstable_by_key(|x| x.row);
+            queens_pos.sort_unstable_by_key(|x| x.col);
+        }
         queens_pos
     }
     #[inline(always)]
@@ -439,7 +443,8 @@ impl<const N: usize> Board<N> {
         if ENABLE_ITERATIVE_DEEPENING {
             for x in 1..N as u16 * 2 {
                 let t = std::time::Instant::now();
-                let res = self.solve_inner(x);
+                // let res = self.solve_inner(x);
+                let res = vec![];
                 let t = t.elapsed();
                 println!(
                     "Depth {x} - Time used: {}ms ({}μs)",
@@ -453,11 +458,74 @@ impl<const N: usize> Board<N> {
             vec![]
         } else {
             // Could even make do with just N*4, or N*3 actually.
-            self.solve_inner(N as u16 * 5)
+            // self.solve_inner(N as u16 * 5)
+
+            let q = Self::get_queens_pos(self.init_state);
+            let mut q_new = q;
+            let ans = self.solve_inner(N as u16 * 5, q).len();
+
+            for a in 0..8 {
+                for b in 0..8 {
+                    if b == a {
+                        continue;
+                    }
+                    for c in 0..8 {
+                        if c == a || c == b {
+                            continue;
+                        }
+                        for d in 0..8 {
+                            if d == a || d == b || d == c {
+                                continue;
+                            }
+                            for e in 0..8 {
+                                if e == a || e == b || e == c || e == d {
+                                    continue;
+                                }
+                                for f in 0..8 {
+                                    if f == a || f == b || f == c || f == d || f == e {
+                                        continue;
+                                    }
+                                    for g in 0..8 {
+                                        if g == a || g == b || g == c || g == d || g == e || g == f
+                                        {
+                                            continue;
+                                        }
+                                        for h in 0..8 {
+                                            if h == a
+                                                || h == b
+                                                || h == c
+                                                || h == d
+                                                || h == e
+                                                || h == f
+                                                || h == g
+                                            {
+                                                continue;
+                                            }
+                                            q_new[a] = q[0];
+                                            q_new[b] = q[1];
+                                            q_new[c] = q[2];
+                                            q_new[d] = q[3];
+                                            q_new[e] = q[4];
+                                            q_new[f] = q[5];
+                                            q_new[g] = q[6];
+                                            q_new[h] = q[7];
+                                            let l = self.solve_inner(N as u16 * 5, q_new).len();
+                                            if l != ans {
+                                                println!("FUUUUUUUUUUUUUUUUUUUUUUUUUUUUUU");
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            vec![]
         }
     }
     #[inline(always)]
-    pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
+    pub fn solve_inner(&mut self, cutoff: u16, queens: [Coord; N]) -> Vec<Moves> {
         use SearchStatus::*;
         let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
 
@@ -465,7 +533,7 @@ impl<const N: usize> Board<N> {
 
         // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/hard2
 
-        let queens = Self::get_queens_pos(self.init_state);
+        // let queens = Self::get_queens_pos(self.init_state);
         let mut goals = Self::get_queens_pos(self.goal_state);
         // Defines each queens has taken which goal.
         let mut queen_i_goal = [-1; N];
