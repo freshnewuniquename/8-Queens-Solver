@@ -980,6 +980,7 @@ impl<const N: usize> Board<N> {
 
             if node == dest {
                 path_exist = true;
+                break;
             } else {
                 let left_ok = node.col > 0;
                 let right_ok = node.col + 1 < N as i8;
@@ -1028,6 +1029,20 @@ impl<const N: usize> Board<N> {
                         col: node.col,
                     };
                     push_not_visited(bot, node);
+                }
+                if left_ok {
+                    let left = Coord {
+                        row: node.row,
+                        col: node.col - 1,
+                    };
+                    push_not_visited(left, node);
+                }
+                if right_ok {
+                    let right = Coord {
+                        row: node.row,
+                        col: node.col + 1,
+                    };
+                    push_not_visited(right, node);
                 }
             }
         }
