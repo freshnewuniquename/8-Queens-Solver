@@ -60,6 +60,51 @@ pub trait Search {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct NoAllocDFS<T: Copy, const N: usize = 32>([T; N], usize);
+impl<T: Copy, const N: usize> NoAllocDFS<T, N> {
+    #[allow(dead_code)]
+    pub fn to_vec(self) -> Vec<T> {
+        self.0[..self.1].to_vec()
+    }
+}
+
+impl<T: Copy, const N: usize> Search for NoAllocDFS<T, N> {
+    type Item = T;
+
+    const ABORT_ON_FOUND: bool = false;
+    const IS_INFORMED: bool = false;
+
+    fn new() -> Self {
+        unsafe { NoAllocDFS([std::mem::MaybeUninit::zeroed().assume_init(); N], 0) }
+    }
+    fn with_capacity(_: usize) -> Self {
+        unsafe { NoAllocDFS([std::mem::MaybeUninit::zeroed().assume_init(); N], 0) }
+    }
+    fn next(&self) -> Option<&Self::Item> {
+        if self.1 > 0 {
+            Some(&self.0[self.1 - 1])
+        } else {
+            None
+        }
+    }
+    fn pop_next(&mut self) -> Option<Self::Item> {
+        if self.1 > 0 {
+            self.1 -= 1;
+            Some(self.0[self.1])
+        } else {
+            None
+        }
+    }
+    fn push(&mut self, item: Self::Item) {
+        self.0[self.1] = item;
+        self.1 += 1;
+    }
+    fn len(&self) -> usize {
+        self.1
+    }
+}
+
 // Iterative Depth-first search.
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -119,7 +164,11 @@ impl<T> Search for BFS<T> {
         None
     }
     fn push(&mut self, item: Self::Item) {
-        self.0.push_back((item, self.1));
+        if self.1 == 0 {
+            self.0.push_front((item, 0));
+        } else {
+            self.0.push_back((item, self.1));
+        }
     }
     fn len(&self) -> usize {
         self.0.len()
