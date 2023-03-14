@@ -101,7 +101,6 @@ impl std::fmt::Display for BoardPrint {
     }
 }
 
-
 // TODO: Maybe generate all moveable moves so that an additional Coord type is not required.
 // TOOO: List out the 3-moves moves.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -139,6 +138,13 @@ impl Moves {
     pub fn get_dest(&self) -> Option<Coord> {
         Some(self.get_values()?.1)
     }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum SearchStatus {
+    Ok,
+    OnHold(usize),
+    RetryingHold(usize),
 }
 
 impl<const N: usize> Default for Board<N> {
@@ -452,102 +458,190 @@ impl<const N: usize> Board<N> {
     }
     #[inline(always)]
     pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
+        use SearchStatus::*;
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
 
-        let mut ds = <search::BFS<_> as Search>::with_capacity(28406); // Uses 28406 on ./src/hard1.
+        // let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 28406 on ./src/hard2.
 
-        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(28283); // Uses 28283 on ./src/hard1
+        let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 28283 on ./src/hard1
 
         let queens = Self::get_queens_pos(self.init_state);
-        let mut solved = Self::get_queens_pos(self.goal_state);
-        let mut defined_dest = [-1; N];
+        let mut goals = Self::get_queens_pos(self.goal_state);
+        // Defines each queens has taken which goal.
+        let mut queen_i_goal = [-1; N];
 
-        for (i, x) in queens.iter().enumerate() {
-            for y in solved.iter_mut() {
-                if x == y {
+        for (i, x) in queens.into_iter().enumerate() {
+            for (ii, y) in goals.iter_mut().enumerate() {
+                if x == *y {
                     *y = Coord { row: -1, col: -1 };
-                    defined_dest[i] = i8::MAX;
+                    queen_i_goal[i] = ii as i8;
+                    break;
                 }
             }
         }
 
-        // Capacity usage analysis. Will only be used in debug mode.
+        // Usage analysis. Will only be used in debug mode.
         #[allow(unused_mut)]
-        let mut _nodes_found = 1; // Including the root node.
+        let mut _nodes_generated = 1; // Including the root node.
+        let mut _duplicating_nodes_found = 0;
         let mut _explored = 0;
         let mut _pruned = 0;
         let mut _max_frontier_len = 0;
+        let mut _stuck_nodes = 0;
+        let mut _stuck_node_loop_arounds = 0;
 
-        let mut solve_idx = 0;
-        while solve_idx < N && solved[solve_idx].row == -1 {
-            solve_idx += 1;
+        let mut goal_idx = 0;
+        while goal_idx < N && goals[goal_idx].row == -1 {
+            goal_idx += 1;
         }
-        ds.push((queens, defined_dest, solve_idx, Vec::with_capacity(N)));
 
-        let mut lowest_moves = u16::MAX;
+        // TODO: Seems to have a lot of duplicates...
+
+        ds.push((queens, queen_i_goal, goal_idx, Vec::with_capacity(N), Ok));
+
+        let mut lowest_moves = cutoff;
         let mut lowest_moves_list = Vec::new();
 
-        while let Some((queens, defined_dest, solve_idx, moves)) = ds.pop_next() {
+        while let Some((queens, queen_i_goal, mut goal_idx, moves, status)) = ds.pop_next() {
             #[cfg(debug_assertions)]
             {
                 _explored += 1;
             }
-            if solve_idx == N {
-                if lowest_moves > moves.len() as u16 {
-                    lowest_moves = moves.len() as u16;
-                    lowest_moves_list = moves;
+
+            let mut next_goal_idx = goal_idx + 1;
+            if let RetryingHold(_) = status {
+                'a: while next_goal_idx < N {
+                    if goals[next_goal_idx].row == -1 {
+                        next_goal_idx += 1;
+                        continue;
+                    }
+                    for q in queens {
+                        if q == goals[next_goal_idx] {
+                            next_goal_idx += 1;
+                            continue 'a;
+                        }
+                    }
+
+                    if goal_idx == usize::MAX {
+                        goal_idx = next_goal_idx;
+                        next_goal_idx += 1;
+                    } else {
+                        break;
+                    }
                 }
-                if ds.is_abort_on_found() {
-                    break;
-                } else {
-                    continue;
+            } else {
+                while next_goal_idx < N && goals[next_goal_idx].row == -1 {
+                    next_goal_idx += 1;
                 }
             }
-            if lowest_moves <= moves.len() as u16 {
-                // Pruning.
-                #[cfg(debug_assertions)]
-                {
-                    _pruned += 1;
+
+            if goal_idx == N {
+                match status {
+                    OnHold(idx) => {
+                        #[cfg(debug_assertions)]
+                        {
+                            // Will insert a dummy node to do the loop around.
+                            _explored -= 1;
+                            _stuck_node_loop_arounds += 1;
+                        }
+                        ds.moves_hint(0).apply_path_cost(moves.len()).push((
+                            queens,
+                            queen_i_goal,
+                            usize::MAX,
+                            moves,
+                            RetryingHold(idx),
+                        ));
+                    }
+                    RetryingHold(idx) if idx != N => {
+                        todo!("hmm");
+                    }
+                    _ => {
+                        if lowest_moves > moves.len() as u16 {
+                            // TODO: try to permute each state now.
+                            // This(removed proof) means everything about the current search is wrong, and needs a O((N!)^2) algo.
+                            // (The current search assumes that it is safe to start a search randomly, because other pieces
+                            // does not have side effects that will affect the least moves possible.)
+                            lowest_moves = moves.len() as u16;
+                            lowest_moves_list = moves;
+                        }
+                        if ds.is_abort_on_found() {
+                            break;
+                        }
+                    }
                 }
                 continue;
             }
-            let mut next_solve_idx = solve_idx + 1;
-            while next_solve_idx < N && solved[next_solve_idx].row == -1 {
-                next_solve_idx += 1;
-            }
 
-            for (i, x) in defined_dest.iter().enumerate() {
+            let iter = match status {
+                Ok => queen_i_goal[..N].into_iter().enumerate().skip(0),
+                OnHold(idx) => queen_i_goal[..idx].into_iter().enumerate().skip(0),
+                RetryingHold(idx) => queen_i_goal[..N].into_iter().enumerate().skip(idx),
+            };
+
+            for (i, x) in iter {
                 if *x == -1 {
-                    let mut defined_dest_new = defined_dest;
+                    // Current queen has no goal yet.
+                    let mut queen_i_goal_new = queen_i_goal;
                     let mut queens_new = queens;
                     let mut moves_new = moves.clone();
+                    let mut status_new = status;
 
-                    let moves = Self::min_moves_with_list(
+                    let moves_count = Self::min_moves_with_list(
                         &queens,
                         queens[i],
-                        solved[solve_idx],
+                        goals[goal_idx],
                         &mut moves_new,
                     );
-                    if moves != -1 {
-                        defined_dest_new[i] = solve_idx as i8;
-                        queens_new[i] = solved[solve_idx];
-                        ds.moves_hint(moves).apply_path_cost(moves_new.len()).push((
-                            queens_new,
-                            defined_dest_new,
-                            next_solve_idx,
-                            moves_new,
-                        ));
+
+                    if moves_count != 0 {
+                        queen_i_goal_new[i] = goal_idx as i8;
+                        queens_new[i] = goals[goal_idx]; // Moves queen to the goal.
+
+                        if let RetryingHold(idx) = status {
+                            status_new = RetryingHold(idx + 1);
+                        }
                     } else {
-                        ds.moves_hint(0).apply_path_cost(moves_new.len()).push((
-                            queens_new,
-                            defined_dest_new,
-                            next_solve_idx,
-                            moves_new,
-                        ));
+                        #[cfg(debug_assertions)]
+                        {
+                            _stuck_nodes += 1;
+                        }
+                        status_new = match status {
+                            Ok => {
+                                queens_new.swap(i, N - 1);
+                                queen_i_goal_new.swap(i, N - 1);
+                                OnHold(N - 1)
+                            }
+                            OnHold(idx) => {
+                                queens_new.swap(i, idx - 1);
+                                queen_i_goal_new.swap(i, idx - 1);
+                                OnHold(idx - 1)
+                            }
+                            _ => todo!("Should not be happening if N = 8... I think."),
+                        };
                     }
+
+                    if moves_new.len() as u16 >= lowest_moves {
+                        // Pruning.
+                        #[cfg(debug_assertions)]
+                        {
+                            _pruned += 1;
+                        }
+                        continue;
+                    }
+
+                    ds.moves_hint(moves_count)
+                        .apply_path_cost(moves_new.len())
+                        .push((
+                            queens_new,
+                            queen_i_goal_new,
+                            next_goal_idx,
+                            moves_new,
+                            status_new,
+                        ));
+
                     #[cfg(debug_assertions)]
                     {
-                        _nodes_found += 1;
+                        _nodes_generated += 1;
                     }
                 }
             }
@@ -560,8 +654,18 @@ impl<const N: usize> Board<N> {
         #[cfg(debug_assertions)]
         unsafe {
             // Not adding .clear() to the trait, so this is done manually.
-            while let Some(_) = ds.pop_next() {}
-            dbg!(ds, _nodes_found, _explored, _pruned, _max_frontier_len, μs_used_searching_is_blocked);
+            ds = Search::new();
+
+            dbg!(
+                ds,
+                _nodes_generated,
+                _explored,
+                _pruned,
+                _max_frontier_len,
+                _stuck_nodes,
+                _stuck_node_loop_arounds,
+                μs_used_searching_is_blocked,
+            );
         }
         lowest_moves_list
     }
@@ -829,7 +933,25 @@ impl<const N: usize> Board<N> {
             }
         }
 
+        if src == "a1".into() && dest == "b3".into() {
+            moves.push(Moves::Vertical(src, "a3".into()));
+            moves.push(Moves::Horizontal("a3".into(), dest));
+            return 2;
+        }
+
+        // FIXME:
+        //   |-+-|
+        // 3 |q|q|
+        //   |-+-|
+        // 2 | |q|
+        //   |-+-|
+        // 1 |q|q|
+        //   -----
+        //    a b
+        // a1 -> b3 (results in 3 moves. Should be a1->a2, a2->b3)
+
         // TODO: Diagonal to Diagonal move
+        // TODO: Horizontal to vertical, and vice versa
 
         let mut board = [[0; N]; N];
 
@@ -837,7 +959,7 @@ impl<const N: usize> Board<N> {
             board[x.row as usize][x.col as usize] = 1;
         }
 
-        let mut ds = <search::AStar<Coord> as Search>::with_capacity(N * N);
+        let mut ds = <search::NoAllocDFS<Coord> as Search>::new();
         let mut visited = [[false; N]; N];
         let mut path_exist = false;
 
@@ -922,8 +1044,6 @@ impl<const N: usize> Board<N> {
             moves.push(Moves::ThreeMoves3(src, dest));
             3
         } else {
-            // println!("{map_list:?}");
-            // println!("{src}->{dest}\n");
             0
         }
     }
