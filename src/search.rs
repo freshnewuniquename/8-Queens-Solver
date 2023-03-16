@@ -23,39 +23,51 @@ pub trait Search {
     fn len(&self) -> usize;
     /// Functions as a hint for how many moves was made in that one search.
     ///
-    /// This is useful for breadth-first search variant, where the search probes layer
-    /// by layer.
+    /// This is useful for breadth-first search variant, where the search probes
+    /// layer by layer.
     ///
-    /// Other searches that does not require this function should just ignore this in
-    /// their implementation.
+    /// Other searches that does not require this function should just ignore
+    /// this in their implementation.
     ///
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_path_cost(cost).push(node);
+    /// bfs.moves_hint(moves).push(node);
     /// ```
     #[must_use]
     fn moves_hint(&mut self, _moves: i8) -> &mut Self {
         self
     }
-    /// This function is used to supply the value of the node in an informed search.
+    /// This function is used to supply the cost of the path in an search.
     ///
-    /// This function will keep the value temporarily, and is consumed on the next .push().
+    /// This function will keep the value temporarily, and is used on the next
+    /// .push().
     ///
-    /// NOTE: Make sure to use this function before a .push(), or else it will cause
-    ///       undefined behaviour.
+    /// NOTE: Make sure to use this function before a .push(), or else it will
+    ///       cause undefined behaviour.
     ///
     /// # Examples:
     ///
     /// ```
-    /// dijkstra.moves_hint(moves).apply_path_cost(cost).push(node);
+    /// dijkstra.apply_path_cost(cost).push(node);
     /// ```
     #[must_use]
     fn apply_path_cost(&mut self, _cost: usize) -> &mut Self {
         self
     }
+    /// This function is used to supply the estimated heuristic for the current
+    /// node in an information search.
+    ///
+    /// This function will only store the result of the computed heuristic
+    /// that is performed outside of this function.
+    ///
+    /// # Examples:
+    ///
+    /// ```
+    /// a_star.apply_path_cost(cost).apply_node_heuristic(est_cost).push(node);
+    /// ```
     #[must_use]
-    fn calculate_heuristic(&mut self, _map_list: usize) -> &mut Self {
+    fn apply_node_heuristic(&mut self, _cost: usize) -> &mut Self {
         self
     }
 }
@@ -196,7 +208,6 @@ impl<T> PartialOrd for BinaryHeapItem<T> {
         Some(std::cmp::Ord::cmp(&self, &other))
     }
 }
-
 impl<T> Eq for BinaryHeapItem<T> {}
 impl<T> PartialEq for BinaryHeapItem<T> {
     fn eq(&self, other: &Self) -> bool {
@@ -266,7 +277,7 @@ impl<T> Search for AStar<T> {
         self.1 += cost;
         self
     }
-    fn calculate_heuristic(&mut self, _map_list: usize) -> &mut Self {
+    fn apply_node_heuristic(&mut self, _cost: usize) -> &mut Self {
         self
     }
 }
