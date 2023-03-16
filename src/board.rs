@@ -675,7 +675,6 @@ impl<const N: usize> Board<N> {
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
-        // ds: &mut search::AStar<T>
     ) -> i8 {
         #[cfg(debug_assertions)]
         {
@@ -691,13 +690,13 @@ impl<const N: usize> Board<N> {
         let (src, dest) = (src_piece, dest_square);
 
         let mut ds = <search::AStar<_> as Search>::with_capacity(N * N);
-        let mut visited = [[isize::MAX; N]; N];
+        let mut visited = [[usize::MAX; N]; N];
 
         for x in map_list.iter() {
             unsafe {
                 *visited
                     .get_unchecked_mut(x.row as usize)
-                    .get_unchecked_mut(x.col as usize) = -1;
+                    .get_unchecked_mut(x.col as usize) = 0;
             }
         }
 
@@ -718,11 +717,11 @@ impl<const N: usize> Board<N> {
             NoOrientation,
         }
 
-        ds.push((src, src, NoOrientation, 0, Vec::with_capacity(4)));
+        ds.push((src, src, NoOrientation, 1, ([Moves::NoPossibleMoves; 8], 0)));
 
         const TURNING_PENALTY: usize = 10000;
 
-        while let Some((node, start, prev_dir, cur_total, mut turns)) = ds.pop_next() {
+        while let Some((node, start, prev_dir, cur_total, turns)) = ds.pop_next() {
             let mut push_not_visited = |node: Coord, parent: Coord, dir| {
                 let mut cost = cur_total;
                 let heuristic = node.abs_diff(dest) as usize;
@@ -735,30 +734,26 @@ impl<const N: usize> Board<N> {
                     *visited
                         .get_unchecked(node.row as usize)
                         .get_unchecked(node.col as usize)
-                        >= cost as isize
+                        >= cost
                 } {
                     unsafe {
                         *visited
                             .get_unchecked_mut(node.row as usize)
-                            .get_unchecked_mut(node.col as usize) = cost as isize;
+                            .get_unchecked_mut(node.col as usize) = cost;
                     }
                     if prev_dir == dir || prev_dir == NoOrientation {
-                        ds.apply_path_cost(cost + heuristic).push((
-                            node,
-                            start,
-                            dir,
-                            cost,
-                            turns.clone(),
-                        ));
+                        ds.apply_path_cost(cost + heuristic)
+                            .push((node, start, dir, cost, turns));
                     } else {
-                        let mut turns_new = turns.clone();
+                        let mut turns_new = turns;
 
                         use Moves::*;
-                        turns_new.push(match prev_dir {
+                        turns_new.0[turns_new.1] = match prev_dir {
                             Up | Down => Vertical(start, parent),
                             Left | Right => Horizontal(start, parent),
                             _ => Diagonal(start, parent),
-                        });
+                        };
+                        turns_new.1 += 1;
 
                         ds.apply_path_cost(cost + heuristic).push((
                             node,
@@ -773,16 +768,16 @@ impl<const N: usize> Board<N> {
 
             if node == dest {
                 // Same as the match{} in push_not_visited||
+                for x in &turns.0[..turns.1] {
+                    moves.push(*x);
+                }
+
                 use Moves::*;
-                turns.push(match prev_dir {
+                moves.push(match prev_dir {
                     Up | Down => Vertical(start, node),
                     Left | Right => Horizontal(start, node),
                     _ => Diagonal(start, node),
                 });
-                let len = turns.len();
-                for x in turns {
-                    moves.push(x);
-                }
 
                 #[cfg(debug_assertions)]
                 {
@@ -791,7 +786,7 @@ impl<const N: usize> Board<N> {
                     }
                 }
 
-                return len as i8;
+                return turns.1 as i8 + 1;
             } else {
                 let left_ok = node.col > 0;
                 let right_ok = node.col + 1 < N as i8;
