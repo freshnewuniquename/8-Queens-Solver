@@ -16,6 +16,10 @@ impl Coord {
     fn abs_diff(self, other: Self) -> u8 {
         self.row.abs_diff(other.row) + self.col.abs_diff(other.col)
     }
+    fn euclidean_distance_squared(self, other: Self) -> usize {
+        (self.row.abs_diff(other.row) as usize).pow(2)
+            + (self.col.abs_diff(other.col) as usize).pow(2)
+    }
 }
 
 impl std::fmt::Display for Coord {
