@@ -80,6 +80,7 @@ fn main() {
     let mut read = 0;
     let mut quiet = false;
     let mut benchmark = cfg!(debug_assertions);
+    let mut terminate = false;
 
     let exec_name = cli_options.next().unwrap_or_default();
     let exec_name = exec_name.to_string_lossy();
@@ -101,12 +102,13 @@ fn main() {
                             concat!(
                                 "Solves a N-Queen puzzle from the given input.\n\n",
                                 "Options:\n",
-                                "  -b,  --bench\t\tDisplays the running time for some parts of the program.",
+                                "  -b,  --bench\t\tDisplays the running time for some parts of the program.\n",
                                 "  -h, --help\t\tDisplays this message.\n",
-                                "      --trust\t\tRead the following input file without performing any checks (Not recommended). ",
+                                "      --trust\t\tRead the following input file without performing any checks (Not recommended).\n",
                                 "  -q, --quiet\t\tSupresses the program output."
                             )
                         );
+                        terminate = true;
                     }
                     ("--trust", _) => {
                         trustable = true;
@@ -140,6 +142,10 @@ fn main() {
                 option.to_string_lossy()
             );
         }
+    }
+
+    if terminate {
+        return;
     }
 
     // Apply default files.
