@@ -590,12 +590,8 @@ impl<const N: usize> Board<N> {
                     let mut moves_new = moves.clone();
                     let mut status_new = status;
 
-                    let moves_count = Self::min_moves_with_list(
-                        &queens,
-                        queens[i],
-                        goals[goal_idx],
-                        &mut moves_new,
-                    );
+                    let moves_count =
+                        Self::min_moves(&queens, queens[i], goals[goal_idx], &mut moves_new);
 
                     if moves_count != 0 {
                         queen_i_goal_new[i] = goal_idx as i8;
@@ -672,6 +668,203 @@ impl<const N: usize> Board<N> {
             );
         }
         lowest_moves_list
+    }
+    #[inline(always)]
+    fn min_moves(
+        map_list: &[Coord; N],
+        src_piece: Coord,
+        dest_square: Coord,
+        moves: &mut Vec<Moves>,
+        // ds: &mut search::AStar<T>
+    ) -> i8 {
+        #[cfg(debug_assertions)]
+        {
+            debug_assert!(
+                src_piece != dest_square,
+                "$src_piece and $dest_square should not be the same!"
+            );
+            for x in map_list {
+                debug_assert!(*x != dest_square, "$dest_square must not contain a Queen!");
+            }
+        }
+
+        let (src, dest) = (src_piece, dest_square);
+
+        let mut ds = <search::AStar<_> as Search>::with_capacity(N * N);
+        let mut visited = [[isize::MAX; N]; N];
+
+        for x in map_list.iter() {
+            unsafe {
+                *visited
+                    .get_unchecked_mut(x.row as usize)
+                    .get_unchecked_mut(x.col as usize) = -1;
+            }
+        }
+
+        let t = std::time::Instant::now();
+
+        use Direction::*;
+        #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+        #[repr(u8)]
+        enum Direction {
+            UpLeft,
+            Up,
+            UpRight,
+            Left,
+            Right,
+            DownLeft,
+            Down,
+            DownRight,
+            NoOrientation,
+        }
+
+        ds.push((src, src, NoOrientation, 0, Vec::with_capacity(4)));
+
+        const TURNING_PENALTY: usize = 10000;
+
+        while let Some((node, start, prev_dir, cur_total, mut turns)) = ds.pop_next() {
+            let mut push_not_visited = |node: Coord, parent: Coord, dir| {
+                let mut cost = cur_total;
+                let heuristic = node.abs_diff(dest) as usize;
+                let penalty = TURNING_PENALTY;
+                if prev_dir != dir && prev_dir != NoOrientation {
+                    cost += penalty;
+                }
+
+                if unsafe {
+                    *visited
+                        .get_unchecked(node.row as usize)
+                        .get_unchecked(node.col as usize)
+                        >= cost as isize
+                } {
+                    unsafe {
+                        *visited
+                            .get_unchecked_mut(node.row as usize)
+                            .get_unchecked_mut(node.col as usize) = cost as isize;
+                    }
+                    if prev_dir == dir || prev_dir == NoOrientation {
+                        ds.apply_path_cost(cost + heuristic).push((
+                            node,
+                            start,
+                            dir,
+                            cost,
+                            turns.clone(),
+                        ));
+                    } else {
+                        let mut turns_new = turns.clone();
+
+                        use Moves::*;
+                        turns_new.push(match prev_dir {
+                            Up | Down => Vertical(start, parent),
+                            Left | Right => Horizontal(start, parent),
+                            _ => Diagonal(start, parent),
+                        });
+
+                        ds.apply_path_cost(cost + heuristic).push((
+                            node,
+                            parent,
+                            dir,
+                            cur_total + penalty,
+                            turns_new,
+                        ));
+                    }
+                }
+            };
+
+            if node == dest {
+                // Same as the match{} in push_not_visited||
+                use Moves::*;
+                turns.push(match prev_dir {
+                    Up | Down => Vertical(start, node),
+                    Left | Right => Horizontal(start, node),
+                    _ => Diagonal(start, node),
+                });
+                let len = turns.len();
+                for x in turns {
+                    moves.push(x);
+                }
+
+                #[cfg(debug_assertions)]
+                {
+                    unsafe {
+                        μs_used_searching_is_blocked += t.elapsed().as_micros();
+                    }
+                }
+
+                return len as i8;
+            } else {
+                let left_ok = node.col > 0;
+                let right_ok = node.col + 1 < N as i8;
+                let top_ok = node.row + 1 < N as i8;
+                let bot_ok = node.row > 0;
+
+                if top_ok {
+                    if left_ok {
+                        let top_left = Coord {
+                            row: node.row + 1,
+                            col: node.col - 1,
+                        };
+                        push_not_visited(top_left, node, UpLeft);
+                    }
+                    if right_ok {
+                        let top_right = Coord {
+                            row: node.row + 1,
+                            col: node.col + 1,
+                        };
+                        push_not_visited(top_right, node, UpRight);
+                    }
+                    let top = Coord {
+                        row: node.row + 1,
+                        col: node.col,
+                    };
+                    push_not_visited(top, node, Up);
+                }
+                if bot_ok {
+                    if left_ok {
+                        let bot_left = Coord {
+                            row: node.row - 1,
+                            col: node.col - 1,
+                        };
+                        push_not_visited(bot_left, node, DownLeft);
+                    }
+                    if right_ok {
+                        let bot_right = Coord {
+                            row: node.row - 1,
+                            col: node.col + 1,
+                        };
+                        push_not_visited(bot_right, node, DownRight);
+                    }
+                    let bot = Coord {
+                        row: node.row - 1,
+                        col: node.col,
+                    };
+                    push_not_visited(bot, node, Down);
+                }
+                if left_ok {
+                    let left = Coord {
+                        row: node.row,
+                        col: node.col - 1,
+                    };
+                    push_not_visited(left, node, Left);
+                }
+                if right_ok {
+                    let right = Coord {
+                        row: node.row,
+                        col: node.col + 1,
+                    };
+                    push_not_visited(right, node, Right);
+                }
+            }
+        }
+
+        #[cfg(debug_assertions)]
+        {
+            unsafe {
+                μs_used_searching_is_blocked += t.elapsed().as_micros();
+            }
+        }
+
+        0
     }
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
     fn min_moves_with_list(
