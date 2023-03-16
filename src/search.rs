@@ -268,7 +268,8 @@ impl<T> Search for AStar<T> {
         self.0.pop().map(|x| x.0)
     }
     fn push(&mut self, item: Self::Item) {
-        self.0.push(BinaryHeapItem(item, self.1))
+        self.0.push(BinaryHeapItem(item, self.1));
+        self.1 = 0;
     }
     fn len(&self) -> usize {
         self.0.len()
@@ -277,7 +278,8 @@ impl<T> Search for AStar<T> {
         self.1 += cost;
         self
     }
-    fn apply_node_heuristic(&mut self, _cost: usize) -> &mut Self {
+    fn apply_node_heuristic(&mut self, cost: usize) -> &mut Self {
+        self.1 += cost;
         self
     }
 }
