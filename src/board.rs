@@ -101,8 +101,7 @@ impl std::fmt::Display for BoardPrint {
     }
 }
 
-// TODO: Maybe generate all moveable moves so that an additional Coord type is not required.
-// TOOO: List out the 3-moves moves.
+// TODO: List out the 3-moves moves.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 #[allow(dead_code)]
 pub enum Moves {
@@ -113,29 +112,83 @@ pub enum Moves {
     ThreeMoves2(Coord, Coord),
     ThreeMoves3(Coord, Coord),
     NoPossibleMoves,
+    Left(Coord, Coord),
+    Right(Coord, Coord),
+    Up(Coord, Coord),
+    Down(Coord, Coord),
+    UpLeft(Coord, Coord),
+    UpRight(Coord, Coord),
+    DownLeft(Coord, Coord),
+    DownRight(Coord, Coord),
 }
-
-#[allow(non_upper_case_globals)]
-static mut μs_used_searching_is_blocked: u128 = 0;
 
 #[allow(dead_code)]
 impl Moves {
-    pub fn get_values(&self) -> Option<(Coord, Coord)> {
+    pub fn get_values(self) -> Option<(Coord, Coord)> {
         use Moves::*;
         match self {
+            // TODO: Look for a way to solve this mess.
             Horizontal(src, dest)
             | Vertical(src, dest)
             | Diagonal(src, dest)
             | ThreeMoves1(src, dest)
             | ThreeMoves2(src, dest)
-            | ThreeMoves3(src, dest) => Some((*src, *dest)),
+            | ThreeMoves3(src, dest)
+            | Left(src, dest)
+            | Right(src, dest)
+            | Up(src, dest)
+            | Down(src, dest)
+            | UpLeft(src, dest)
+            | UpRight(src, dest)
+            | DownLeft(src, dest)
+            | DownRight(src, dest) => Some((src, dest)),
             NoPossibleMoves => None,
         }
     }
-    pub fn get_src(&self) -> Option<Coord> {
+    pub fn get_specific_direction(self) -> Self {
+        use Moves::*;
+
+        if let Some((src, dest)) = self.get_values() {
+            if src == dest {
+                return NoPossibleMoves;
+            }
+        }
+
+        match self {
+            Horizontal(src, dest) => {
+                if dest.col > src.col {
+                    Right(src, dest)
+                } else {
+                    Left(src, dest)
+                }
+            }
+            Vertical(src, dest) => {
+                if dest.row > src.row {
+                    Up(src, dest)
+                } else {
+                    Down(src, dest)
+                }
+            }
+            Diagonal(src, dest) => {
+                if dest.row > src.row {
+                    if dest.col > src.col {
+                        UpRight(src, dest)
+                    } else {
+                        UpLeft(src, dest)
+                    }
+                } else if dest.col > src.col {
+                    DownRight(src, dest)
+                } else {
+                    DownLeft(src, dest)
+                }
+            }
+            x @ _ => x,
+        }
+    }
+    pub fn get_src(self) -> Option<Coord> {
         Some(self.get_values()?.0)
     }
-    pub fn get_dest(&self) -> Option<Coord> {
+    pub fn get_dest(self) -> Option<Coord> {
         Some(self.get_values()?.1)
     }
 }
@@ -146,6 +199,9 @@ enum SearchStatus {
     OnHold(usize),
     RetryingHold(usize),
 }
+
+#[allow(non_upper_case_globals)]
+static mut μs_used_searching_is_blocked: u128 = 0;
 
 impl<const N: usize> Default for Board<N> {
     fn default() -> Self {
@@ -745,11 +801,10 @@ impl<const N: usize> Board<N> {
                     } else {
                         let mut turns_new = turns;
 
-                        use Moves::*;
                         turns_new.0[turns_new.1] = match prev_dir {
-                            Up | Down => Vertical(start, parent),
-                            Left | Right => Horizontal(start, parent),
-                            _ => Diagonal(start, parent),
+                            Up | Down => Moves::Vertical(start, parent),
+                            Left | Right => Moves::Horizontal(start, parent),
+                            _ => Moves::Diagonal(start, parent),
                         };
                         turns_new.1 += 1;
 
@@ -770,11 +825,10 @@ impl<const N: usize> Board<N> {
                     moves.push(*x);
                 }
 
-                use Moves::*;
                 moves.push(match prev_dir {
-                    Up | Down => Vertical(start, node),
-                    Left | Right => Horizontal(start, node),
-                    _ => Diagonal(start, node),
+                    Up | Down => Moves::Vertical(start, node),
+                    Left | Right => Moves::Horizontal(start, node),
+                    _ => Moves::Diagonal(start, node),
                 });
 
                 #[cfg(debug_assertions)]
@@ -1316,7 +1370,7 @@ impl<const N: usize> Board<N> {
             }
 
             println!("{}\n", Self::to_string_inner(&new_map));
-            println!("Move {}: {x:?}\n\n", i + 1);
+            println!("Move {}: {:?}\n\n", i + 1, x.get_specific_direction());
         }
     }
     pub fn to_string(&self) -> String {
