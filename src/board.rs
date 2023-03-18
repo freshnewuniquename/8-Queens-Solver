@@ -307,9 +307,11 @@ impl<const N: usize> Board<N> {
             for (i, x) in rank.bytes().enumerate() {
                 let mut valid = true;
 
-                if x.is_ascii_digit() && !in_digit_range {
-                    in_digit_range = true;
-                    last_digit_index = i;
+                if x.is_ascii_digit() {
+                    if !in_digit_range {
+                        in_digit_range = true;
+                        last_digit_index = i;
+                    }
                 } else if x == b'q' || x == b'Q' {
                     if in_digit_range {
                         // Parse the number. Should be safe to call .unwrap().
