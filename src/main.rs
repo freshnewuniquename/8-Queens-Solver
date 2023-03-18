@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::{stdout, Read, Write},
     path::{Component, Path},
+    time::Instant,
 };
 mod board;
 mod board_builder;
@@ -18,7 +19,7 @@ fn interactive_menu() {
 /// The number of bytes read will be returned.
 /// If the value is 0, then the file was not read successfully.
 fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
-    println!("Received {file_path}");
+    eprintln!("Received {file_path}");
 
     match File::open(&file_path) {
         Ok(mut file_handle) => {
@@ -26,7 +27,7 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
             match res {
                 Ok(read) => read,
                 Err(desc) => {
-                    println!("\"{file_path}\" can't be read. [{desc}]");
+                    eprintln!("\"{file_path}\" can't be read. [{desc}]");
                     return 0;
                 }
             }
@@ -34,12 +35,12 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
         Err(desc) => {
             // There are some quirks with the let-else statement (The return thing), so not using it rn.
             let Some(file_name) = Path::new(&file_path).file_name() else {
-                println!("No file name found.");
+                eprintln!("No file name found.");
                 return 0;
             };
             let file_name = file_name.to_str().expect("Not a valid UTF-8 file name.");
 
-            println!("\"{file_path}\" can't be opened, or does not exist. [{desc}]");
+            eprintln!("\"{file_path}\" can't be opened, or does not exist. [{desc}]");
 
             if !Path::new(&file_path).components().any(|x| {
                 if let Component::Normal(x) = x {
@@ -51,7 +52,7 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
                 let src_path = Path::new("./src/states").join(file_name);
                 let src_path = src_path.to_string_lossy();
 
-                println!("Searching for \"{src_path}\".");
+                eprintln!("Searching for \"{src_path}\".");
                 read_file_to(src_path.to_string(), data)
             } else {
                 0
@@ -61,8 +62,9 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
 }
 
 fn main() {
+    const N: usize = 8;
     let mut cli_options = env::args_os();
-    let mut file_data = [0; 128 * 128]; // Supports up to 128-Queens. But only 26 addressable squares using CSV.
+    let mut file_buffer = [0; 128 * 128]; // Supports up to 128-Queens. But only 26 addressable squares using CSV.
 
     if let Err(_) = writeln!(stdout(), "") {
         // Is stdout accessible?
@@ -70,88 +72,149 @@ fn main() {
         return;
     }
 
-    if cli_options.len() <= 1 {
-        let read = read_file_to("init".into(), &mut file_data);
-        let mut board = board_builder::BoardBuilder::<8>::new()
-            .trust(false)
-            .set(unsafe { std::str::from_utf8_unchecked(&file_data[..read]) })
-            .data_type(board_builder::InputDataType::CSV)
-            .build()
-            .unwrap();
+    // TODO: Maybe allow more than one board per run.
+    let mut trustable = false;
+    let mut init_range = (0, 0);
+    let mut files_read_count = 0;
+    let mut read = 0;
+    let mut quiet = false;
+    let mut benchmark = cfg!(debug_assertions);
+    let mut terminate = false;
 
-        println!("{board}");
-        println!("Valid: {}\n", board.validate_game());
+    let exec_name = cli_options.next().unwrap_or_default();
+    let exec_name = exec_name.to_string_lossy();
+    let exec_name = exec_name.rsplit_once('/').unwrap_or(("", &exec_name)).1;
 
-        let moves = board.solve();
-        println!("{}", board);
-        println!("Valid: {}", board.validate_game());
-        println!("Total moves: {}", moves);
-    } else {
-        let mut trustable = false;
-        let exec_name = cli_options.next().unwrap_or_default();
-        let exec_name = exec_name.to_string_lossy();
-        let exec_name = exec_name.rsplit_once('/').unwrap_or(("", &exec_name)).1;
+    for option in cli_options {
+        if let Some(option) = option.to_str() {
+            if option.starts_with('-') {
+                let option = option.split_once('=').unwrap_or((option, ""));
 
-        for option in cli_options {
-            if let Some(option) = option.to_str() {
-                if option.starts_with('-') {
-                    let option = option.split_once('=').unwrap_or((option, ""));
-
-                    match (option.0, option.1) {
-                        ("--help" | "-h", _) => {
-                            println!(
-                                "Usage: {exec_name} [OPTIONS] INPUT\n{}",
-                                concat!(
-                                    "Solves a N-Queen puzzle from the given input.\n\n",
-                                    "Options:\n",
-                                    "  -h, --help\t\tDisplays this message.\n",
-                                    "      --trust\t\tRead the following input file without performing any checks (Not recommended). ")
-                            );
-                        }
-                        ("--trust", _) => {
-                            // Trust only works on one file.
-                            trustable = true;
-                        }
-                        _ => {
-                            println!("{exec_name}: invalid option '{}'\nTry '{exec_name} --help' for more information.", option.0);
-                        }
+                // TODO: Adds support for the grouping of small options.
+                match (option.0, option.1) {
+                    ("-b" | "--bench", _) => {
+                        benchmark = true;
                     }
-                    continue;
-                }
-
-                let read = read_file_to(option.into(), &mut file_data);
-                if read == 0 {
-                    continue;
-                }
-
-                // TODO: allow user to set the board size.
-                let board = board_builder::BoardBuilder::<8>::new()
-                    .trust(trustable)
-                    .set(unsafe { std::str::from_utf8_unchecked(&file_data[..read]) })
-                    .build();
-
-                let mut board = match board {
-                    Ok(x) => x,
-                    Err(msg) => {
-                        println!("{msg}");
-                        continue;
+                    ("-h" | "--help", _) => {
+                        println!(
+                            "Usage: {exec_name} [OPTIONS] INPUT\n{}",
+                            concat!(
+                                "Solves a N-Queen puzzle from the given input.\n\n",
+                                "Options:\n",
+                                "  -b,  --bench\t\tDisplays the running time for some parts of the program.\n",
+                                "  -h, --help\t\tDisplays this message.\n",
+                                "      --trust\t\tRead the following input file without performing any checks (Not recommended).\n",
+                                "  -q, --quiet\t\tSupresses the program output."
+                            )
+                        );
+                        terminate = true;
                     }
-                };
-                trustable = false;
-
-                println!("{board}");
-                println!("Valid: {}\n", board.validate_game());
-
-                let moves = board.solve();
-                println!("{}", board);
-                println!("Valid: {}", board.validate_game());
-                println!("Total moves: {}", moves);
-            } else {
-                println!(
-                    "\"{}\" is not a valid UTF-8 argument. Command ignored, proceeding...",
-                    option.to_string_lossy()
-                );
+                    ("--trust", _) => {
+                        trustable = true;
+                    }
+                    ("-q" | "--quiet", _) => {
+                        quiet = true;
+                    }
+                    _ => {
+                        println!("{exec_name}: invalid option '{}'\nTry '{exec_name} --help' for more information.", option.0);
+                    }
+                }
+                continue;
             }
+
+            let read_new = read + read_file_to(option.into(), &mut file_buffer[read..]);
+            if read_new == read {
+                continue;
+            }
+
+            if files_read_count % 2 == 0 {
+                init_range = (read, read_new);
+            }
+
+            read = read_new;
+            files_read_count += 1;
+        } else {
+            println!(
+                "\"{}\" is not a valid UTF-8 argument. Command ignored, proceeding...",
+                option.to_string_lossy()
+            );
+        }
+    }
+
+    if terminate {
+        return;
+    }
+
+    // Apply default files.
+    let _init = if init_range == (0, 0) {
+        let init = read_file_to("init".into(), &mut file_buffer);
+        init_range = (0, init);
+        init
+    } else {
+        0
+    };
+
+    // Convert bytes to strings.
+    let init_data = if init_range != (0, 0) {
+        unsafe { std::str::from_utf8_unchecked(&file_buffer[init_range.0..init_range.1]) }
+    } else {
+        ""
+    };
+
+    let start = Instant::now();
+
+    // TODO: allow user to set the board size.
+    let board = board_builder::BoardBuilder::<N>::new()
+        .trust(trustable)
+        .pipe_if(!init_data.is_empty(), |s| s.set_init(init_data))
+        .build();
+
+    let mut board = match board {
+        Ok(x) => x,
+        Err(msg) => {
+            if !quiet {
+                println!("{msg}");
+            }
+            return;
+        }
+    };
+
+    if benchmark && !quiet {
+        let elapsed = start.elapsed();
+        println!(
+            "\nTime used for input reading: {}ms ({}μs)",
+            elapsed.as_millis(),
+            elapsed.as_micros()
+        );
+    }
+
+    let start = std::time::Instant::now();
+
+    println!("{board}\n\nInitial state\n\n");
+    let moves = board.solve();
+
+    if benchmark && !quiet {
+        let elapsed = start.elapsed();
+        println!(
+            "\nTime used for solve(): {}ms ({}μs)",
+            elapsed.as_millis(),
+            elapsed.as_micros()
+        );
+    }
+
+    if !quiet {
+        let start = std::time::Instant::now();
+
+        println!("{board}\n\nInitial state\n\n");
+        board.replay_moves(&moves);
+
+        if benchmark {
+            let elapsed = start.elapsed();
+            println!(
+                "\nTime used for replaying moves: {}ms ({}μs)",
+                elapsed.as_millis(),
+                elapsed.as_micros()
+            );
         }
     }
 }

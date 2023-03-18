@@ -1,11 +1,12 @@
 #![allow(dead_code)]
-use crate::search::Search;
+use crate::search::{self, Search};
+use std::io::{stdout, Write};
 
 pub struct Board<const N: usize> {
-    cur_state: [[u8; N]; N],
+    pub(super) init_state: [[u8; N]; N],
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Default, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Default)]
 pub struct Coord {
     pub row: i8,
     pub col: i8,
@@ -18,32 +19,177 @@ impl std::fmt::Display for Coord {
     }
 }
 
-pub trait EightQueen {
-    fn new(csv_data: &str) -> Board<8>;
+impl std::fmt::Debug for Coord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
 }
 
-impl EightQueen for Board<8> {
-    fn new(csv_data: &str) -> Board<8> {
-        let mut board = Board::default();
-
-        #[cfg(debug_assertions)]
-        {
-            board.set_with_csv(csv_data).unwrap();
+impl std::convert::From<&str> for Coord {
+    fn from(value: &str) -> Self {
+        let bytes = value.as_bytes();
+        Coord {
+            row: value[1..].parse::<i8>().unwrap() - 1,
+            col: (bytes[0] - b'a') as i8,
         }
-        #[cfg(not(debug_assertions))]
-        {
-            unsafe {
-                board.fast_set_with_csv(csv_data);
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+enum BoardPrint {
+    Empty = 0,
+    Q,
+    Pound,         // Move from
+    VerticalSlash, // Move path
+    BackwardSlash, // Move path
+    ForwardSlash,  // Move path
+    Hyphen,        // Move path
+}
+
+impl BoardPrint {
+    fn new(id: u8) -> Self {
+        id.into()
+    }
+    fn to_unicode_u8(self) -> u8 {
+        let c: char = self.into();
+        c as u8
+    }
+}
+
+impl From<u8> for BoardPrint {
+    fn from(value: u8) -> Self {
+        use BoardPrint::*;
+        match value {
+            0 => Empty,
+            1 => Q,
+            2 => Pound,
+            3 => VerticalSlash,
+            4 => BackwardSlash,
+            5 => ForwardSlash,
+            6 => Hyphen,
+            _ => todo!("Unknown symbol."),
+        }
+    }
+}
+
+impl From<BoardPrint> for char {
+    fn from(value: BoardPrint) -> Self {
+        use BoardPrint::*;
+        match value {
+            Empty => ' ',
+            Q => 'Q',
+            Pound => '#',
+            VerticalSlash => '|',
+            BackwardSlash => '\\',
+            ForwardSlash => '/',
+            Hyphen => '-',
+        }
+    }
+}
+
+impl std::fmt::Display for BoardPrint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let c: char = (*self).into();
+        write!(f, "{}", c)
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[allow(dead_code)]
+pub enum Moves {
+    Horizontal(Coord, Coord),
+    Vertical(Coord, Coord),
+    Diagonal(Coord, Coord),
+    ThreeMoves1(Coord, Coord),
+    ThreeMoves2(Coord, Coord),
+    ThreeMoves3(Coord, Coord),
+    NoPossibleMoves,
+    Left(Coord, Coord),
+    Right(Coord, Coord),
+    Up(Coord, Coord),
+    Down(Coord, Coord),
+    UpLeft(Coord, Coord),
+    UpRight(Coord, Coord),
+    DownLeft(Coord, Coord),
+    DownRight(Coord, Coord),
+}
+
+#[allow(dead_code)]
+impl Moves {
+    pub fn get_values(self) -> Option<(Coord, Coord)> {
+        use Moves::*;
+        match self {
+            // TODO: Look for a way to solve this mess.
+            Horizontal(src, dest)
+            | Vertical(src, dest)
+            | Diagonal(src, dest)
+            | ThreeMoves1(src, dest)
+            | ThreeMoves2(src, dest)
+            | ThreeMoves3(src, dest)
+            | Left(src, dest)
+            | Right(src, dest)
+            | Up(src, dest)
+            | Down(src, dest)
+            | UpLeft(src, dest)
+            | UpRight(src, dest)
+            | DownLeft(src, dest)
+            | DownRight(src, dest) => Some((src, dest)),
+            NoPossibleMoves => None,
+        }
+    }
+    pub fn get_specific_direction(self) -> Self {
+        use Moves::*;
+
+        if let Some((src, dest)) = self.get_values() {
+            if src == dest {
+                return NoPossibleMoves;
             }
         }
-        return board;
+
+        match self {
+            Horizontal(src, dest) => {
+                if dest.col > src.col {
+                    Right(src, dest)
+                } else {
+                    Left(src, dest)
+                }
+            }
+            Vertical(src, dest) => {
+                if dest.row > src.row {
+                    Up(src, dest)
+                } else {
+                    Down(src, dest)
+                }
+            }
+            Diagonal(src, dest) => {
+                if dest.row > src.row {
+                    if dest.col > src.col {
+                        UpRight(src, dest)
+                    } else {
+                        UpLeft(src, dest)
+                    }
+                } else if dest.col > src.col {
+                    DownRight(src, dest)
+                } else {
+                    DownLeft(src, dest)
+                }
+            }
+            x @ _ => x,
+        }
+    }
+    pub fn get_src(self) -> Option<Coord> {
+        Some(self.get_values()?.0)
+    }
+    pub fn get_dest(self) -> Option<Coord> {
+        Some(self.get_values()?.1)
     }
 }
 
 impl<const N: usize> Default for Board<N> {
     fn default() -> Self {
         Board {
-            cur_state: [[0; N]; N],
+            init_state: [[0; N]; N],
         }
     }
 }
@@ -51,27 +197,55 @@ impl<const N: usize> Default for Board<N> {
 impl<const N: usize> Board<N> {
     #[must_use]
     /// The constructor for the Board struct.
-    pub fn new(csv_data: &str) -> Board<N> {
+    pub fn new(init_data: &str) -> Board<N> {
         let mut board = Board::default();
 
         #[cfg(debug_assertions)]
         {
-            board.set_with_csv(csv_data).unwrap();
+            Board::set(init_data, &mut board.init_state).unwrap();
         }
         #[cfg(not(debug_assertions))]
-        {
-            unsafe {
-                board.fast_set_with_csv(csv_data);
-            }
+        unsafe {
+            Board::fast_set(init_data, &mut board.init_state);
         }
         board
+    }
+    /// Takes in a string of data, and buffer, then automatically determine the type
+    /// of data to decode, fill in into the buffer, and returns the result.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the input data does not match any of the
+    /// current supported file types.
+    pub fn set(data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
+        if let Err(fen_desc) = Self::set_with_fen(data, buf) {
+            if let Err(csv_desc) = Self::set_with_csv(data, buf) {
+                return Err(format!(
+                    "Malformed init input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
+                ));
+            }
+        }
+        Ok(())
+    }
+    /// Takes in a string of data, and buffer, then automatically determine the type
+    /// of data to decode, fill in into the buffer.
+    ///
+    /// This is the unsafe version of [`set`]. For more information, refer to that
+    /// function.
+    #[inline(always)]
+    pub unsafe fn fast_set(data: &str, buf: &mut [[u8; N]; N]) {
+        if data.as_bytes()[2] == b',' {
+            Board::fast_set_with_csv(data, buf);
+        } else {
+            Board::fast_set_with_fen(data, buf);
+        }
     }
     /// Sets the board's state with CSV of the queens coordinates.
     ///
     /// # Errors
     ///
     /// This function will return an error if the CSV data is invalid.
-    pub fn set_with_csv(&mut self, csv_data: &str) -> Result<(), String> {
+    pub fn set_with_csv(csv_data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
         let mut it = csv_data.split(',');
 
         let mut cur_count = 0;
@@ -93,7 +267,7 @@ impl<const N: usize> Board<N> {
                     cur_count + 1
                 ));
             }
-            self.cur_state[row as usize - 1][col as usize - 1] = 1;
+            buf[row as usize - 1][col as usize - 1] = 1;
             cur_count += 1;
         }
         Ok(())
@@ -103,24 +277,24 @@ impl<const N: usize> Board<N> {
     /// This is the unsafe version [`set_with_csv`].
     /// This function does not perform any checks to determine the validity of the CSV.
     #[inline(always)]
-    pub unsafe fn fast_set_with_csv(&mut self, csv_data: &str) {
+    pub unsafe fn fast_set_with_csv(csv_data: &str, buf: &mut [[u8; N]; N]) {
         let mut idx = 0;
         let csv_bytes = csv_data.as_bytes();
 
         while idx < N * 3 - 1 {
             let file = csv_bytes[idx] - b'a';
             let rank = csv_bytes[idx + 1] - b'1';
-            self.cur_state[rank as usize][file as usize] = 1;
+            buf[rank as usize][file as usize] = 1;
             idx += 3; // Skips a comma too.
         }
     }
-    /// Reads the provided FEN, and input the queens into $cur_state.
+    /// Reads the provided FEN, and input the queens into $buf.
     ///
     /// NOTE: If there are more than $N queens, the function will only return an Err()
     ///       after all the queens are placed into the board.
     /// NOTE: The board will be left in an incomplete state when an error occurs, instead of
     ///       being left in an untouched state.
-    pub fn set_with_fen(&mut self, fen_data: &str) -> Result<(), String> {
+    pub fn set_with_fen(fen_data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
         // Splits the metadata from the board.
         let fen_data = fen_data.split_once(' ').unwrap_or((fen_data, "")).0;
 
@@ -143,9 +317,11 @@ impl<const N: usize> Board<N> {
             for (i, x) in rank.bytes().enumerate() {
                 let mut valid = true;
 
-                if x.is_ascii_digit() && !in_digit_range {
-                    in_digit_range = true;
-                    last_digit_index = i;
+                if x.is_ascii_digit() {
+                    if !in_digit_range {
+                        in_digit_range = true;
+                        last_digit_index = i;
+                    }
                 } else if x == b'q' || x == b'Q' {
                     if in_digit_range {
                         // Parse the number. Should be safe to call .unwrap().
@@ -154,7 +330,7 @@ impl<const N: usize> Board<N> {
                     }
 
                     if cur_file < N as u8 {
-                        self.cur_state[cur_rank - 1][cur_file as usize] = 1;
+                        buf[cur_rank - 1][cur_file as usize] = 1;
                     }
                     cur_file += 1;
                     total_queens += 1;
@@ -189,20 +365,20 @@ impl<const N: usize> Board<N> {
         }
         Ok(())
     }
-    /// Reads the provided FEN, and input the queens into $cur_state.
+    /// Reads the provided FEN, and input the queens into $buf.
     ///
     /// This is the unsafe version of [`set_with_fen`].
     /// This function does not perform any checks to determine the validity of the FEN.
     #[inline(always)]
-    pub unsafe fn fast_set_with_fen(&mut self, fen_data: &str) {
-        let mut raw_cur_state: *mut u8 = &mut self.cur_state[0][0];
+    pub unsafe fn fast_set_with_fen(fen_data: &str, buf: &mut [[u8; N]; N]) {
+        let mut raw_init_state: *mut u8 = &mut buf[0][0];
         let fen_data = fen_data.as_bytes();
 
         let mut idx = 0;
         while fen_data[idx] != b' ' {
             if fen_data[idx] & 0x60 != 0 {
-                *raw_cur_state = 1;
-                raw_cur_state = raw_cur_state.add(1);
+                *raw_init_state = 1;
+                raw_init_state = raw_init_state.add(1);
                 idx += 1;
             } else {
                 let mut n = fen_data[idx] - b'0';
@@ -216,7 +392,7 @@ impl<const N: usize> Board<N> {
                     idx += 1;
                     n += fen_data[idx] - b'0';
                 }
-                raw_cur_state = raw_cur_state.add(n as usize);
+                raw_init_state = raw_init_state.add(n as usize);
             }
         }
     }
@@ -237,48 +413,56 @@ impl<const N: usize> Board<N> {
         let s = ((src[0] - b'a') as usize, (src[1] - b'1') as usize);
         let d = ((dest[0] - b'a') as usize, (dest[1] - b'1') as usize);
 
-        if self.cur_state[s.1][s.0] == 1 {
-            self.cur_state[s.1][s.0] = 0;
-            self.cur_state[d.1][d.0] = 1;
+        if self.init_state[s.1][s.0] == 1 {
+            self.init_state[s.1][s.0] = 0;
+            self.init_state[d.1][d.0] = 1;
         } else {
             println!("Move invalid");
         }
     }
     /// Returns an N-array of a row and column tuple of the queens position on the board.
-    fn get_queens_pos(map: [[u8; N]; N]) -> [(u8, u8); N] {
-        let mut queens_pos = [(0, 0); N];
+    fn get_queens_pos(map: [[u8; N]; N]) -> [Coord; N] {
+        let mut queens_pos = [Coord::default(); N];
         let mut idx = 0;
 
         for (row_n, row) in map.iter().enumerate().rev() {
             for (col_n, val) in row.iter().enumerate() {
-                if val == &1 {
+                if *val >= 1 {
                     if idx == N {
                         break;
                     }
-                    queens_pos[idx] = (row_n as u8, col_n as u8);
+                    queens_pos[idx] = Coord {
+                        row: row_n as i8,
+                        col: col_n as i8,
+                    };
                     idx += 1;
                 }
             }
         }
-        queens_pos.sort_unstable_by_key(|x| x.1);
+
+        #[cfg(debug_assertions)]
+        {
+            queens_pos.sort_unstable_by_key(|x| x.col);
+            queens_pos.sort_by_key(|x| x.row);
+        }
         queens_pos
     }
     #[inline(always)]
-    pub fn solve(&mut self) -> u16 {
-        let mut ds = <Vec<_> as Search>::with_capacity(64);
+    pub fn solve(&mut self) -> Vec<Moves> {
+        let mut ds = <search::DFS<_> as Search>::with_capacity(64);
 
-        let map = Board::get_queens_pos(self.cur_state);
-        if Self::validate_list(&map) {
-            return 0;
+        let map = Board::get_queens_pos(self.init_state);
+        if Self::validate_list(map) {
+            return vec![];
         }
 
         let mut lowest_solve = u16::MAX;
-        let mut lowest_solve_map = [(u8::MAX, u8::MAX); N];
+        let mut lowest_moves = vec![];
 
         // The search does not start at column 1 because it will result in an 18x slowdown lol.
-        ds.push((0, map, 0));
+        ds.push((0, map, 0, Vec::with_capacity(7)));
 
-        'main: while let Some((idx, map, n)) = ds.pop_next() {
+        'main: while let Some((idx, map, n, moves)) = ds.pop_next() {
             if n >= lowest_solve {
                 // Pruning.
                 continue;
@@ -287,14 +471,24 @@ impl<const N: usize> Board<N> {
             for queen_i in idx + 1..N {
                 let mut row_i = 0;
 
-                while row_i < N as u8 {
+                while row_i < N as i8 {
                     let mut new_map = map;
-                    new_map[queen_i].0 = row_i;
+                    let mut new_moves = moves.clone();
+                    new_map[queen_i].row = row_i;
+
+                    new_moves.push(Moves::Vertical(
+                        map[queen_i],
+                        Coord {
+                            row: row_i,
+                            ..map[queen_i]
+                        },
+                    ));
+
                     row_i += 1;
 
-                    if Self::validate_list(&new_map) {
+                    if Self::validate_list(new_map) {
                         lowest_solve = n + 1;
-                        lowest_solve_map = new_map;
+                        lowest_moves = new_moves;
 
                         if ds.is_abort_on_found() {
                             break 'main;
@@ -302,34 +496,22 @@ impl<const N: usize> Board<N> {
                             continue 'main;
                         }
                     }
-                    ds.push((queen_i, new_map, n + 1));
+                    ds.push((queen_i, new_map, n + 1, new_moves));
                 }
             }
         }
 
-        if lowest_solve != u16::MAX {
-            for row in &mut self.cur_state {
-                for val in row {
-                    if val == &1 {
-                        *val = 0;
-                    }
-                }
-            }
-            for x in lowest_solve_map {
-                self.cur_state[x.0 as usize][x.1 as usize] = 1;
-            }
-        }
-        lowest_solve
+        lowest_moves
     }
     #[inline(always)]
-    fn validate_list(queens_pos: &[(u8, u8); N]) -> bool {
+    fn validate_list(queens_pos: [Coord; N]) -> bool {
         let mut row_lookup = [false; N];
         for x in queens_pos {
             unsafe {
-                if *row_lookup.get_unchecked(x.0 as usize) {
+                if *row_lookup.get_unchecked(x.row as usize) {
                     return false;
                 } else {
-                    *row_lookup.get_unchecked_mut(x.0 as usize) = true;
+                    *row_lookup.get_unchecked_mut(x.row as usize) = true;
                 }
             }
         }
@@ -337,10 +519,10 @@ impl<const N: usize> Board<N> {
         let mut col_lookup = [false; N];
         for x in queens_pos {
             unsafe {
-                if *col_lookup.get_unchecked(x.1 as usize) {
+                if *col_lookup.get_unchecked(x.col as usize) {
                     return false;
                 } else {
-                    *col_lookup.get_unchecked_mut(x.1 as usize) = true;
+                    *col_lookup.get_unchecked_mut(x.col as usize) = true;
                 }
             }
         }
@@ -349,8 +531,8 @@ impl<const N: usize> Board<N> {
         while i < N {
             let mut ii = i + 1;
             while ii < N {
-                if queens_pos[i].0.abs_diff(queens_pos[ii].0)
-                    == queens_pos[i].1.abs_diff(queens_pos[ii].1)
+                if queens_pos[i].row.abs_diff(queens_pos[ii].row)
+                    == queens_pos[i].col.abs_diff(queens_pos[ii].col)
                 {
                     return false;
                 }
@@ -360,11 +542,11 @@ impl<const N: usize> Board<N> {
         }
         true
     }
-    pub fn validate_game(&self) -> bool {
+    pub fn validate_game(&mut self) -> bool {
         let mut queens_pos = Vec::with_capacity(N);
 
         // Mark the location of the queens, and check if more than one are on the same row.
-        for (row_n, row) in self.cur_state.iter().enumerate() {
+        for (row_n, row) in self.init_state.iter().enumerate() {
             let mut has_queen = false;
             for (col_n, val) in row.iter().enumerate() {
                 if val == &1 {
@@ -372,7 +554,10 @@ impl<const N: usize> Board<N> {
                         return false;
                     } else {
                         has_queen = true;
-                        queens_pos.push((row_n, col_n));
+                        queens_pos.push(Coord {
+                            row: row_n as i8,
+                            col: col_n as i8,
+                        });
                     }
                 }
             }
@@ -381,10 +566,10 @@ impl<const N: usize> Board<N> {
         // Check if there are more than one queens on the same column.
         let mut col_lookup = [false; N];
         for x in &queens_pos {
-            if col_lookup[x.1] {
+            if col_lookup[x.col as usize] {
                 return false;
             } else {
-                col_lookup[x.1] = true;
+                col_lookup[x.col as usize] = true;
             }
         }
 
@@ -393,8 +578,8 @@ impl<const N: usize> Board<N> {
         while i < N {
             let mut ii = i + 1;
             while ii < N {
-                if queens_pos[i].0.abs_diff(queens_pos[ii].0)
-                    == queens_pos[i].1.abs_diff(queens_pos[ii].1)
+                if queens_pos[i].row.abs_diff(queens_pos[ii].row)
+                    == queens_pos[i].col.abs_diff(queens_pos[ii].col)
                 {
                     return false;
                 }
@@ -405,10 +590,86 @@ impl<const N: usize> Board<N> {
 
         true
     }
-    pub fn to_string(&self) -> String {
-        Self::to_string_inner(self.cur_state)
+    pub fn replay_moves(&mut self, moves: &Vec<Moves>) {
+        let mut map = self.init_state;
+        let stdout = stdout();
+        let mut stdout = stdout.lock();
+
+        for (i, x) in moves.iter().enumerate() {
+            let mut new_map = map;
+            if let Some((src, dest)) = x.get_values() {
+                map[src.row as usize][src.col as usize] = 0;
+                map[dest.row as usize][dest.col as usize] = 1;
+                new_map = map;
+
+                new_map[src.row as usize][src.col as usize] = BoardPrint::Pound as u8;
+                new_map[dest.row as usize][dest.col as usize] = BoardPrint::Q as u8;
+
+                let (min, max) = if src > dest { (dest, src) } else { (src, dest) };
+
+                match x {
+                    Moves::Diagonal(_, _) => {
+                        let mut src = src;
+                        if src.row < dest.row {
+                            src.row += 1;
+                        } else {
+                            src.row -= 1;
+                        }
+
+                        if src.col < dest.col {
+                            src.col += 1;
+                        } else {
+                            src.col -= 1;
+                        }
+
+                        while src.row != dest.row {
+                            new_map[src.row as usize][src.col as usize] =
+                                if (src.row > dest.row) == (src.col > dest.col) {
+                                    BoardPrint::ForwardSlash as u8
+                                } else {
+                                    BoardPrint::BackwardSlash as u8
+                                };
+                            if src.row < dest.row {
+                                src.row += 1;
+                            } else {
+                                src.row -= 1;
+                            }
+
+                            if src.col < dest.col {
+                                src.col += 1;
+                            } else {
+                                src.col -= 1;
+                            }
+                        }
+                    }
+                    Moves::Vertical(_, _) => {
+                        for y in min.row + 1..max.row {
+                            new_map[y as usize][src.col as usize] = BoardPrint::VerticalSlash as u8;
+                        }
+                    }
+                    Moves::Horizontal(_, _) => {
+                        for x in min.col + 1..max.col {
+                            new_map[src.row as usize][x as usize] = BoardPrint::Hyphen as u8;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            writeln!(stdout, "{}\n", Self::to_string_inner(new_map)).unwrap();
+            writeln!(
+                stdout,
+                "Move {}: {:?}\n\n",
+                i + 1,
+                x.get_specific_direction()
+            )
+            .unwrap();
+        }
     }
-    pub fn to_string_inner(map_list: [[u8; N]; N]) -> String {
+    pub fn to_string(&self) -> String {
+        Self::to_string_inner(self.init_state)
+    }
+    pub fn to_string_inner(map: [[u8; N]; N]) -> String {
         // TODO: const generate the $layout.
         // Using macro temporarily to store constants and stuff, as generics parameter can't be used with constant calculation as of yet.
         // Also acts as a central place to change all the constants, as the board output may not be final.
@@ -444,7 +705,7 @@ impl<const N: usize> Board<N> {
 
         for y in 0..N {
             for x in ((y + 1) % 2..N).step_by(2) {
-                layout[cal!(y, x)] = b'*';
+                layout[cal!(y, x)] = b'.';
             }
         }
 
@@ -487,10 +748,10 @@ impl<const N: usize> Board<N> {
             i += 2;
         }
 
-        for (row_n, row) in map_list[..].iter().rev().enumerate() {
+        for (row_n, row) in map[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
-                if val == &1 {
-                    layout[cal!(row_n, col_n)] = b'Q';
+                if *val >= 1 {
+                    layout[cal!(row_n, col_n)] = BoardPrint::new(*val).to_unicode_u8();
                 }
             }
         }
