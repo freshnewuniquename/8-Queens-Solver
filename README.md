@@ -4,12 +4,12 @@ This project is created solely for a semester project of using search algorithms
 **Note:** _This is only a minimal working version, and has yet been polished, please use at your own risk._
 
 ## Implementation
-The search algorithm used in this implementation is depth-first search, an uninfomed search that can be implemented fairly trivially, of only using FIFO method on a growable array structure. As mentioned, the depth-first search algorithm is implemented iteratively using a stack vector instead of a recursive function call, to reduce the memory size required to store the necessary information.
+The search algorithm used in this implementation is depth-first search, an uninfomed search that can be implemented fairly trivially, of only using LIFO method on a growable array structure. The depth-first search algorithm is implemented iteratively using a stack vector instead of a recursive function call, to reduce the memory size required to store the necessary information.
 
 This 8-Queens solver uses the complete-state formulation, in which the eight pieces are already placed on the board, and each will only occupy one column. The solver will search for an end state that no queens can threathen each other. On each action, the solver will move only one of the pieces according to the queen piece movement.
 
 ## Usage
-The solver will receive an initial state by reading the file from the given file location through CLI, or will fallback to the default ./src/init file if none are specified.
+The solver will receive an initial state by reading the file from the given file location through CLI, or will fallback to the default ./src/states/init file if none are specified.
 
 The solver currently supports the simple CSV of the coordinates of the eight squares, and the Forsyth–Edwards Notation (FEN) input format only.
 
