@@ -41,6 +41,19 @@ impl std::convert::From<&str> for Coord {
     }
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum Direction {
+    UpLeft,
+    Up,
+    UpRight,
+    Left,
+    Right,
+    DownLeft,
+    Down,
+    DownRight,
+    NoOrientation,
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
 enum BoardPrint {
@@ -57,7 +70,7 @@ impl BoardPrint {
     fn new(id: u8) -> Self {
         id.into()
     }
-    fn char_to_u8(self) -> u8 {
+    fn to_unicode_u8(self) -> u8 {
         let c: char = self.into();
         c as u8
     }
@@ -527,6 +540,8 @@ impl<const N: usize> Board<N> {
 
         // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/hard2
 
+        // let mut a_star = <search::AStar<(Coord, Coord, Direction, usize, ([Moves; 8], usize))> as Search>::with_capacity(N*N*2);
+
         let queens = Self::get_queens_pos(self.init_state);
         let mut goals = Self::get_queens_pos(self.goal_state);
         // Defines each queens has taken which goal.
@@ -644,9 +659,14 @@ impl<const N: usize> Board<N> {
                     let mut moves_new = moves.clone();
                     let mut status_new = status;
 
-                    let moves_count =
-                        Self::min_moves(&queens, queens[i], goals[goal_idx], &mut moves_new);
+                    let moves_count = Self::min_moves(
+                        queens,
+                        queens[i],
+                        goals[goal_idx],
+                        &mut moves_new, /*&mut a_star*/
+                    );
 
+                    //a_star.0.clear();
                     if moves_count != 0 {
                         queen_i_goal_new[i] = goal_idx as i8;
                         queens_new[i] = goals[goal_idx]; // Moves queen to the goal.
@@ -725,10 +745,11 @@ impl<const N: usize> Board<N> {
     }
     #[inline(always)]
     fn min_moves(
-        map_list: &[Coord; N],
+        map_list: [Coord; N],
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
+        //ds: &mut search::AStar<(Coord, Coord, Direction, usize, ([Moves; 8], usize))>
     ) -> i8 {
         #[cfg(debug_assertions)]
         {
@@ -737,16 +758,23 @@ impl<const N: usize> Board<N> {
                 "$src_piece and $dest_square should not be the same!"
             );
             for x in map_list {
-                debug_assert!(*x != dest_square, "$dest_square must not contain a Queen!");
+                debug_assert!(x != dest_square, "$dest_square must not contain a Queen!");
             }
         }
 
-        let (src, dest) = (src_piece, dest_square);
+        let src = src_piece;
+        let dest = dest_square;
 
-        let mut ds = <search::AStar<_> as Search>::with_capacity(N * N);
+        let ans = Self::min_moves_with_list(map_list, src, dest, moves);
+        if ans != 0 {
+            return ans;
+        }
+
+        let mut ds = <search::AStar<_> as Search>::with_capacity(N * N * 2);
+        //let mut ds = <search::BFS<_> as Search>::with_capacity(N*N*2);
         let mut visited = [[usize::MAX; N]; N];
 
-        for x in map_list.iter() {
+        for x in map_list {
             unsafe {
                 *visited
                     .get_unchecked_mut(x.row as usize)
@@ -757,21 +785,8 @@ impl<const N: usize> Board<N> {
         let t = std::time::Instant::now();
 
         use Direction::*;
-        #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-        #[repr(u8)]
-        enum Direction {
-            UpLeft,
-            Up,
-            UpRight,
-            Left,
-            Right,
-            DownLeft,
-            Down,
-            DownRight,
-            NoOrientation,
-        }
 
-        ds.push((src, src, NoOrientation, 1, ([Moves::NoPossibleMoves; 8], 0)));
+        ds.push((src, src, NoOrientation, 1, ([Moves::NoPossibleMoves; 4], 0)));
 
         const TURNING_PENALTY: usize = 10000;
 
@@ -915,7 +930,7 @@ impl<const N: usize> Board<N> {
     }
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
     fn min_moves_with_list(
-        map_list: &[Coord; N],
+        map_list: [Coord; N],
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
@@ -924,7 +939,7 @@ impl<const N: usize> Board<N> {
         #[cfg(debug_assertions)]
         {
             for x in map_list {
-                debug_assert!(*x != dest_square, "$dest_square must not contain a Queen!");
+                debug_assert!(x != dest_square, "$dest_square must not contain a Queen!");
             }
             debug_assert!(
                 src_piece != dest_square,
@@ -1046,6 +1061,7 @@ impl<const N: usize> Board<N> {
             moves.push(Moves::Diagonal(src, dest));
             return 1;
         }
+        return 0;
 
         let slope_get_row = |slope: Coord, col| {
             let orig = left;
@@ -1176,6 +1192,7 @@ impl<const N: usize> Board<N> {
                 return 2;
             }
         }
+        return 0;
 
         if src == "a1".into() && dest == "b3".into() {
             moves.push(Moves::Vertical(src, "a3".into()));
@@ -1458,7 +1475,7 @@ impl<const N: usize> Board<N> {
         for (row_n, row) in map_list[..].iter().rev().enumerate() {
             for (col_n, val) in row.iter().enumerate() {
                 if *val != 0 {
-                    layout[cal!(row_n, col_n)] = BoardPrint::new(*val).char_to_u8();
+                    layout[cal!(row_n, col_n)] = BoardPrint::new(*val).to_unicode_u8();
                 }
             }
         }
