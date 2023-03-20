@@ -534,13 +534,10 @@ impl<const N: usize> Board<N> {
     #[inline(always)]
     pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
         use SearchStatus::*;
-        let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
-
-        // let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 30139 on ./src/hard2.
-
-        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/hard2
-
-        // let mut a_star = <search::AStar<(Coord, Coord, Direction, usize, ([Moves; 8], usize))> as Search>::with_capacity(N*N*2);
+        // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
+        // let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 30139 on ./src/states/init-hard2.
+        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/states/init-hard.2
+        let mut ds = <search::AStar<_> as Search>::with_capacity(7622); // Uses 7622 on ./src/states/init-hard.2
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut goals = Self::get_queens_pos(self.goal_state);
@@ -571,6 +568,42 @@ impl<const N: usize> Board<N> {
         while goal_idx < N && goals[goal_idx].row == -1 {
             goal_idx += 1;
         }
+
+        // const DIAGONALS: usize = N*2-1;
+        const DIAGONALS: usize = 15;
+
+        if DIAGONALS != N * 2 - 1 {
+            todo!("Please change the $DIAGONALS value manually in the code, to use other board sizes.");
+        }
+
+        let calculate_heuristic = |map_list: [Coord; N]| {
+            let mut col_count = [0; N];
+            let mut row_count = [0; N];
+            let mut diag_backslash_count = [0; DIAGONALS];
+            let mut diag_fwdslash_count = [0; DIAGONALS];
+
+            for x in map_list {
+                unsafe {
+                    *col_count.get_unchecked_mut(x.col as usize) += 1;
+                    *row_count.get_unchecked_mut(x.row as usize) += 1;
+                    *diag_backslash_count.get_unchecked_mut((x.col + x.row) as usize) += 1;
+                    *diag_fwdslash_count.get_unchecked_mut(N - 1 + (-x.col + x.row) as usize) += 1;
+                }
+            }
+
+            col_count
+                .into_iter()
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+                + row_count
+                    .into_iter()
+                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+                + diag_backslash_count
+                    .into_iter()
+                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+                + diag_fwdslash_count
+                    .into_iter()
+                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+        };
 
         // TODO: Seems to have a lot of duplicates...
 
@@ -621,6 +654,7 @@ impl<const N: usize> Board<N> {
                             _explored -= 1;
                             _stuck_node_loop_arounds += 1;
                         }
+
                         ds.moves_hint(0).apply_path_cost(moves.len()).push((
                             queens,
                             queen_i_goal,
@@ -659,14 +693,9 @@ impl<const N: usize> Board<N> {
                     let mut moves_new = moves.clone();
                     let mut status_new = status;
 
-                    let moves_count = Self::min_moves(
-                        queens,
-                        queens[i],
-                        goals[goal_idx],
-                        &mut moves_new, /*&mut a_star*/
-                    );
+                    let moves_count =
+                        Self::min_moves(queens, queens[i], goals[goal_idx], &mut moves_new);
 
-                    //a_star.0.clear();
                     if moves_count != 0 {
                         queen_i_goal_new[i] = goal_idx as i8;
                         queens_new[i] = goals[goal_idx]; // Moves queen to the goal.
@@ -703,7 +732,14 @@ impl<const N: usize> Board<N> {
                         continue;
                     }
 
+                    let estimated_cost = if ds.is_informed_search() {
+                        calculate_heuristic(queens_new)
+                    } else {
+                        0
+                    };
+
                     ds.moves_hint(moves_count)
+                        .apply_node_heuristic(estimated_cost + moves_new.len())
                         .apply_path_cost(moves_new.len())
                         .push((
                             queens_new,
