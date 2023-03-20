@@ -4,7 +4,7 @@ This project is created solely for a semester project of using search algorithms
 **Note:** _This program is currently in a working state, but has yet been polished, please use at your own risk._
 
 ## Implementation
-The search algorithm used in this implementation is A*, an informed search that can be implemented using a priority queue. The heuristic function of the A* algorithm is calculated with the number of queens that is in an unsafe state (not the same as how many attacks can be made), summed by the number of total moves made, up to that point.
+The search algorithm used in this implementation is A*, an informed search that can be implemented using a priority queue. The heuristic function of the A* algorithm is calculated with the number of attacks that can be made, summed by the number of total moves made, up to that point.
 
 This 8-Queens solver uses the complete-state formulation, in which the eight pieces are already placed on the board. The solver will try to move the queens to match with the end state inputted. On each action, the solver will move only one of the pieces according to the queen piece movement.
 

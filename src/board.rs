@@ -535,9 +535,9 @@ impl<const N: usize> Board<N> {
     pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
         use SearchStatus::*;
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
-        // let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 30139 on ./src/states/init-hard2.
-        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/states/init-hard.2
-        let mut ds = <search::AStar<_> as Search>::with_capacity(7622); // Uses 7622 on ./src/states/init-hard.2
+        let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 30139 on ./src/states/init-hard2.
+                                                                       // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/states/init-hard.2
+                                                                       // let mut ds = <search::AStar<_> as Search>::with_capacity(7622); // Uses 7622 on ./src/states/init-hard.2
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut goals = Self::get_queens_pos(self.goal_state);
@@ -591,18 +591,20 @@ impl<const N: usize> Board<N> {
                 }
             }
 
-            col_count
+            let c = col_count
                 .into_iter()
-                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                + row_count
-                    .into_iter()
-                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                + diag_backslash_count
-                    .into_iter()
-                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                + diag_fwdslash_count
-                    .into_iter()
-                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+            let r = row_count
+                .into_iter()
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+            let db = diag_backslash_count
+                .into_iter()
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+            let df = diag_fwdslash_count
+                .into_iter()
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+
+            c + r + db + df
         };
 
         // TODO: Seems to have a lot of duplicates...
@@ -654,14 +656,10 @@ impl<const N: usize> Board<N> {
                             _explored -= 1;
                             _stuck_node_loop_arounds += 1;
                         }
-
-                        ds.moves_hint(0).apply_path_cost(moves.len()).push((
-                            queens,
-                            queen_i_goal,
-                            usize::MAX,
-                            moves,
-                            RetryingHold(idx),
-                        ));
+                        ds.moves_hint(0)
+                            .apply_node_heuristic(0)
+                            .apply_path_cost(moves.len())
+                            .push((queens, queen_i_goal, usize::MAX, moves, RetryingHold(idx)));
                     }
                     RetryingHold(idx) if idx != N => {
                         todo!("hmm");
@@ -733,13 +731,13 @@ impl<const N: usize> Board<N> {
                     }
 
                     let estimated_cost = if ds.is_informed_search() {
-                        calculate_heuristic(queens_new)
+                        calculate_heuristic(queens_new) + moves_new.len() * 2
                     } else {
                         0
                     };
 
                     ds.moves_hint(moves_count)
-                        .apply_node_heuristic(estimated_cost + moves_new.len())
+                        .apply_node_heuristic(estimated_cost)
                         .apply_path_cost(moves_new.len())
                         .push((
                             queens_new,
