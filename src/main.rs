@@ -44,12 +44,12 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
 
             if !Path::new(&file_path).components().any(|x| {
                 if let Component::Normal(x) = x {
-                    x == "src"
+                    x == "states"
                 } else {
                     false
                 }
             }) {
-                let src_path = Path::new("./src").join(file_name);
+                let src_path = Path::new("./src/states").join(file_name);
                 let src_path = src_path.to_string_lossy();
 
                 eprintln!("Searching for \"{src_path}\".");
