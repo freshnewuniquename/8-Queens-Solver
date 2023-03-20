@@ -221,7 +221,7 @@ impl<const N: usize> Board<N> {
         if let Err(fen_desc) = Self::set_with_fen(data, buf) {
             if let Err(csv_desc) = Self::set_with_csv(data, buf) {
                 return Err(format!(
-                    "Malformed init input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
+                    "Unable to determine file data type.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
                 ));
             }
         }
@@ -263,7 +263,7 @@ impl<const N: usize> Board<N> {
 
             if col > N as u8 || row > N as u8 || col == 0 || row == 0 {
                 return Err(format!(
-                    "Malformed Queen {} coordinates value.",
+                    "Invalid Queen {} coordinates value.",
                     cur_count + 1
                 ));
             }
@@ -302,7 +302,7 @@ impl<const N: usize> Board<N> {
             .bytes()
             .fold(0, |acc, x| if x == b'/' { acc + 1 } else { acc });
         if ranks_total != N - 1 {
-            return Err(format!("Expected {N} ranks, but found {ranks_total}."));
+            return Err(format!("Expected {N} ranks, but found {}.", ranks_total+1));
         }
 
         let mut it = fen_data.split('/');

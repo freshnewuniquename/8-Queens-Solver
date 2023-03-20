@@ -95,19 +95,15 @@ impl<'a, const N: usize> BoardBuilder<'a, N> {
             } else if self.data_type == CSV {
                 // Functions with side effects, so no return values.
                 if let Err(desc) = Board::set_with_csv(data, buf) {
-                    return Err(format!("Malformed CSV input - {}", desc));
+                    return Err(format!("Malformed CSV - {desc}"));
                 }
             } else if self.data_type == FEN {
                 if let Err(desc) = Board::set_with_fen(data, buf) {
-                    return Err(format!("Malformed FEN input - {}", desc));
+                    return Err(format!("Malformed FEN - {desc}"));
                 }
             } else {
-                if let Err(fen_desc) = Board::set(data, buf) {
-                    if let Err(csv_desc) = Board::set(data, buf) {
-                        return Err(format!(
-                            "Malformed input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
-                        ));
-                    }
+                if let Err(desc) = Board::set(data, buf) {
+                    return Err(format!("Malformed data - {desc}"));
                 }
             }
             Ok(())
