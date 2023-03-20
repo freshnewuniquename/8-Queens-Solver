@@ -743,13 +743,21 @@ impl<const N: usize> Board<N> {
         }
         lowest_moves_list
     }
+    /// This function calculates the minimum moves required for a queen ($src_piece) to move the destination ($dest_square).
+    ///
+    /// This function is the complete version of [`min_moves_fast`], as this uses A* to search for a possible path.
+    /// This function is able to find the minimum moves required to navigate through the map correctly. [^note]
+    /// The only downside is this search is slower than the fast version, so currently the fast version is used first,
+    /// then when the fast version is unable to find a solution, this version is used.
+    ///
+    /// [^note] This is proven true for all the current init states available.
+    ///         (TODO: Implement tests to proof it.)
     #[inline(always)]
     fn min_moves(
         map_list: [Coord; N],
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
-        //ds: &mut search::AStar<(Coord, Coord, Direction, usize, ([Moves; 8], usize))>
     ) -> i8 {
         #[cfg(debug_assertions)]
         {
@@ -765,13 +773,12 @@ impl<const N: usize> Board<N> {
         let src = src_piece;
         let dest = dest_square;
 
-        let ans = Self::min_moves_with_list(map_list, src, dest, moves);
+        let ans = Self::min_moves_fast(map_list, src, dest, moves);
         if ans != 0 {
             return ans;
         }
 
         let mut ds = <search::AStar<_> as Search>::with_capacity(N * N * 2);
-        //let mut ds = <search::BFS<_> as Search>::with_capacity(N*N*2);
         let mut visited = [[usize::MAX; N]; N];
 
         for x in map_list {
@@ -928,14 +935,20 @@ impl<const N: usize> Board<N> {
 
         0
     }
+    /// This function calculates the minimum moves required for a queen ($src_piece) to move the destination ($dest_square).
+    ///
+    /// This function will insert the moves that will be taken, into the $moves Vector, when possible.
+    /// This function will return 0, and not insert any moves, if it is unable to find a move.
+    ///
+    /// NOTE: This function must use [`min_moves`] as a backup if this returns 0 (NoPossibleMoves),
+    ///       as the search in this function does not cover all the cases.
     /// XXX: $dest_square must not contain a Queen piece on that coordinates.
-    fn min_moves_with_list(
+    fn min_moves_fast(
         map_list: [Coord; N],
         src_piece: Coord,
         dest_square: Coord,
         moves: &mut Vec<Moves>,
     ) -> i8 {
-        // The maximum steps allowed will always be a 3, if there is a path and, if the board is NxN with N queens.
         #[cfg(debug_assertions)]
         {
             for x in map_list {
@@ -1061,7 +1074,6 @@ impl<const N: usize> Board<N> {
             moves.push(Moves::Diagonal(src, dest));
             return 1;
         }
-        return 0;
 
         let slope_get_row = |slope: Coord, col| {
             let orig = left;
@@ -1192,14 +1204,9 @@ impl<const N: usize> Board<N> {
                 return 2;
             }
         }
-        return 0;
 
-        if src == "a1".into() && dest == "b3".into() {
-            moves.push(Moves::Vertical(src, "a3".into()));
-            moves.push(Moves::Horizontal("a3".into(), dest));
-            return 2;
-        }
-
+        0
+        // The following are the cases to cover in order to rely less on min_moves()
         // FIXME:
         //   |-+-|
         // 3 |q|q|
@@ -1213,115 +1220,6 @@ impl<const N: usize> Board<N> {
 
         // TODO: Diagonal to Diagonal move
         // TODO: Horizontal to vertical, and vice versa
-
-        let mut board = [[0; N]; N];
-
-        for x in map_list.iter() {
-            board[x.row as usize][x.col as usize] = 1;
-        }
-
-        let mut ds = <search::NoAllocDFS<Coord> as Search>::new();
-        let mut visited = [[false; N]; N];
-        let mut path_exist = false;
-
-        let t = std::time::Instant::now();
-        visited[src.row as usize][src.col as usize] = true;
-        ds.push(src);
-
-        while let Some(node) = ds.pop_next() {
-            let mut push_not_visited = |node: Coord, parent: Coord| {
-                if !visited[node.row as usize][node.col as usize] {
-                    visited[node.row as usize][node.col as usize] = true;
-                    if board[node.row as usize][node.col as usize] == 0 {
-                        ds.apply_path_cost(node.abs_diff(parent) as usize)
-                            .push(node);
-                    }
-                }
-            };
-
-            if node == dest {
-                path_exist = true;
-                break;
-            } else {
-                let left_ok = node.col > 0;
-                let right_ok = node.col + 1 < N as i8;
-                let top_ok = node.row + 1 < N as i8;
-                let bot_ok = node.row > 0;
-
-                // No path cost, just estimated heuristic. Could've used Dijkstra too.
-                if top_ok {
-                    if left_ok {
-                        let top_left = Coord {
-                            row: node.row + 1,
-                            col: node.col - 1,
-                        };
-                        push_not_visited(top_left, node);
-                    }
-                    if right_ok {
-                        let top_right = Coord {
-                            row: node.row + 1,
-                            col: node.col + 1,
-                        };
-                        push_not_visited(top_right, node);
-                    }
-                    let top = Coord {
-                        row: node.row + 1,
-                        col: node.col,
-                    };
-                    push_not_visited(top, node);
-                }
-                if bot_ok {
-                    if left_ok {
-                        let bot_left = Coord {
-                            row: node.row - 1,
-                            col: node.col - 1,
-                        };
-                        push_not_visited(bot_left, node);
-                    }
-                    if right_ok {
-                        let bot_right = Coord {
-                            row: node.row - 1,
-                            col: node.col + 1,
-                        };
-                        push_not_visited(bot_right, node);
-                    }
-                    let bot = Coord {
-                        row: node.row - 1,
-                        col: node.col,
-                    };
-                    push_not_visited(bot, node);
-                }
-                if left_ok {
-                    let left = Coord {
-                        row: node.row,
-                        col: node.col - 1,
-                    };
-                    push_not_visited(left, node);
-                }
-                if right_ok {
-                    let right = Coord {
-                        row: node.row,
-                        col: node.col + 1,
-                    };
-                    push_not_visited(right, node);
-                }
-            }
-        }
-
-        unsafe {
-            μs_used_searching_is_blocked += t.elapsed().as_micros();
-        }
-
-        // TODO: check if path exist.
-        if path_exist {
-            // Might not be max 3 moves...
-            moves.push(Moves::ThreeMoves1(src, dest));
-            moves.push(Moves::ThreeMoves2(src, dest));
-            moves.push(Moves::ThreeMoves3(src, dest));
-            3
-        } else {
-            0
-        }
     }
     pub fn replay_moves(&mut self, moves: &Vec<Moves>) {
         let mut map = self.init_state;
