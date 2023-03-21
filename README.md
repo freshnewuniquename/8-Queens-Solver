@@ -13,7 +13,7 @@ The solver will receive an initial state by reading the file from the given file
 
 The solver currently supports the simple CSV of the coordinates of the eight squares, and the Forsyth–Edwards Notation (FEN) input format only.
 
-An CSV input example of 8 queens being placed horizontally on the bottom-most row:
+A CSV input example of 8 queens being placed horizontally on the bottom-most row:
 ```
 a1,b1,c1,d1,e1,f1,h1,g1
 ```

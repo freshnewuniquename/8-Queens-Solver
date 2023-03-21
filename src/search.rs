@@ -1,5 +1,5 @@
 use std::cmp::{Eq, Ord, PartialEq, PartialOrd};
-use std::collections::{BinaryHeap, VecDeque};
+use std::collections::{BTreeSet, VecDeque};
 
 #[allow(dead_code)]
 pub trait Search {
@@ -193,14 +193,15 @@ impl<T> Search for BFS<T> {
 
 // Dijkstra's algorithm
 #[derive(Debug)]
-pub struct Dijkstra<T>(BinaryHeap<BinaryHeapItem<T>>, usize);
+pub struct Dijkstra<T>(BTreeSet<BinaryHeapItem<T>>, usize);
 #[derive(Debug)]
 pub struct BinaryHeapItem<T>(T, usize);
 
 // Convert a max-heap to a min-heap.
 impl<T> Ord for BinaryHeapItem<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.1.cmp(&self.1)
+        // other.1.cmp(&self.1)
+        self.1.cmp(&other.1)
     }
 }
 impl<T> PartialOrd for BinaryHeapItem<T> {
@@ -222,19 +223,19 @@ impl<T> Search for Dijkstra<T> {
     const IS_INFORMED: bool = false;
 
     fn new() -> Self {
-        Dijkstra(BinaryHeap::new(), 0)
+        Dijkstra(BTreeSet::new(), 0)
     }
     fn with_capacity(n: usize) -> Self {
-        Dijkstra(BinaryHeap::with_capacity(n), 0)
+        Dijkstra(BTreeSet::new(), 0)
     }
     fn next(&self) -> Option<&Self::Item> {
-        self.0.peek().map(|x| &x.0)
+        self.0.first().map(|x| &x.0)
     }
     fn pop_next(&mut self) -> Option<Self::Item> {
-        self.0.pop().map(|x| x.0)
+        self.0.pop_first().map(|x| x.0)
     }
     fn push(&mut self, item: Self::Item) {
-        self.0.push(BinaryHeapItem(item, self.1));
+        self.0.insert(BinaryHeapItem(item, self.1));
     }
     fn len(&self) -> usize {
         self.0.len()
@@ -247,7 +248,7 @@ impl<T> Search for Dijkstra<T> {
 
 // A*
 #[derive(Debug)]
-pub struct AStar<T>(BinaryHeap<BinaryHeapItem<T>>, usize);
+pub struct AStar<T>(pub BTreeSet<BinaryHeapItem<T>>, usize);
 
 impl<T> Search for AStar<T> {
     type Item = T;
@@ -256,19 +257,19 @@ impl<T> Search for AStar<T> {
     const IS_INFORMED: bool = true;
 
     fn new() -> Self {
-        Self(BinaryHeap::new(), 0)
+        Self(BTreeSet::new(), 0)
     }
     fn with_capacity(n: usize) -> Self {
-        Self(BinaryHeap::with_capacity(n), 0)
+        Self(BTreeSet::new(), 0)
     }
     fn next(&self) -> Option<&Self::Item> {
-        self.0.peek().map(|x| &x.0)
+        self.0.first().map(|x| &x.0)
     }
     fn pop_next(&mut self) -> Option<Self::Item> {
-        self.0.pop().map(|x| x.0)
+        self.0.pop_first().map(|x| x.0)
     }
     fn push(&mut self, item: Self::Item) {
-        self.0.push(BinaryHeapItem(item, self.1));
+        self.0.insert(BinaryHeapItem(item, self.1));
         self.1 = 0;
     }
     fn len(&self) -> usize {

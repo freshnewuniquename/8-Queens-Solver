@@ -466,7 +466,7 @@ impl<const N: usize> Board<N> {
             todo!("Please change the $DIAGONALS value manually in the code, to use other board sizes.");
         }
 
-        let mut lowest_solve = u16::MAX;
+        let mut lowest_total = u16::MAX;
         let mut lowest_moves = vec![];
 
         #[allow(unused_mut)]
@@ -474,8 +474,6 @@ impl<const N: usize> Board<N> {
         let mut _explored = 0;
         let mut _pruned = 0;
         let mut _max_frontier_len = 0;
-
-        ds.push((map_list, 0, Vec::with_capacity(N)));
 
         let diag_rel_bot_left = |x: Coord| (x.col + x.row) as usize;
         let diag_rel_bot_right = |x: Coord| N - 1 + (-x.col + x.row) as usize;
@@ -505,29 +503,84 @@ impl<const N: usize> Board<N> {
             )
         };
 
-        // let calculate_heuristic = |col_count: [u8; N], row_count: [u8; N], diag_backslash_count: [u8; N*2-1], diag_fwdslash_count: [u8; N*2-1]| {
         let calculate_heuristic =
             |col_count: [u8; N],
              row_count: [u8; N],
              diag_backslash_count: [u8; DIAGONALS],
              diag_fwdslash_count: [u8; DIAGONALS]| {
-                col_count
+             let c = col_count
                     .into_iter()
-                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                    + row_count
+                    .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x*(x - 1) });
+             let r = row_count
                         .into_iter()
-                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                    + diag_backslash_count
+                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x*(x - 1) });
+             let db = diag_backslash_count
                         .into_iter()
-                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
-                    + diag_fwdslash_count
+                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x*(x - 1) });
+             let df = diag_fwdslash_count
                         .into_iter()
-                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 })
+                        .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x*(x - 1) });
+                 c + r + db + df
             };
 
-        'main: while let Some((map_list, total, moves)) = ds.pop_next() {
+        macro_rules! gen_nodes {
+            ($dir: tt, $capture: expr) => {{
+                let (val, map_list, moves, queen_i, get_counts, calculate_heuristic, lowest_total, new_total, lowest_moves, ds, idx, _nodes_generated) = $capture;
+
+                unsafe {
+                    gen_nodes!(generate $dir, val, map_list, moves, queen_i, get_counts, calculate_heuristic, &mut *lowest_total, new_total, &mut *lowest_moves, &mut *ds, idx, &mut *_nodes_generated)
+                }
+            }};
+            (generate $dir: tt, $val: expr, $map_list: expr, $moves: expr, $queen_i: expr, $get_counts: expr, $calculate_heuristic: expr, $lowest_total: expr, $new_total: expr, $lowest_moves: expr, $ds: expr, $idx: expr, $_nodes_generated: expr) => {{
+                if $map_list[$queen_i] != $val {
+                    let mut new_map_list = $map_list;
+                    let mut new_moves = $moves.clone();
+                    new_map_list[$queen_i] = $val;
+                    
+                    let (cc, rc, dbc, dfc) = $get_counts(new_map_list);
+                    
+                    let estimated_cost = $calculate_heuristic(cc, rc, dbc, dfc) as usize;
+                    
+                    new_moves.push(Moves::$dir(
+                        $map_list[$queen_i],
+                        $val
+                    ));
+                    
+                    if estimated_cost == 0 {
+                        *$lowest_total = $new_total;
+                        *$lowest_moves = new_moves;
+                        if Search::is_abort_on_found($ds) {
+                            true
+                        } else {
+                            let t: u16 = *$lowest_total;
+                            println!("Found: {t} moves solution.");
+                            true
+                        }
+                    } else {
+                        #[allow(unused_must_use)]
+                        {
+                            Search::apply_node_heuristic($ds, estimated_cost);
+                            Search::apply_path_cost($ds, $new_total as usize);
+                            Search::push($ds, (new_map_list, $new_total, new_moves, $idx));
+                        }
+                        #[cfg(debug_assertions)]
+                        {
+                            *$_nodes_generated += 1;
+                        }
+                        false
+                    }
+                } else {
+                    false
+                }
+            }};
+        }
+
+        // Search starts.
+        ds.push((map_list, 0, Vec::with_capacity(N), 0));
+
+        'main: while let Some((map_list, total, moves, idx)) = ds.pop_next() {
             let new_total = total + 1;
-            if new_total >= lowest_solve {
+            if new_total >= lowest_total {
                 // Pruning.
                 #[cfg(debug_assertions)]
                 {
@@ -535,13 +588,31 @@ impl<const N: usize> Board<N> {
                 }
                 continue;
             }
+
+            let mut capture = |val, queen_i| {
+                (
+                    val,
+                    map_list,
+                    &moves,
+                    queen_i,
+                    get_counts,
+                    calculate_heuristic,
+                    &mut lowest_total as *mut _,
+                    new_total,
+                    &mut lowest_moves as *mut _,
+                    &mut ds as *mut _,
+                    idx,
+                    &mut _nodes_generated as *mut _,
+                )
+            };
+
             #[cfg(debug_assertions)]
             {
                 _explored += 1;
             }
 
             // Search the whole row.
-            for queen_i in 0..N {
+            for queen_i in (idx % N)..N {
                 let (cc, mut rc, mut dbc, mut dfc) = get_counts(map_list);
 
                 dbc[diag_rel_bot_left(map_list[queen_i])] -= 1;
@@ -568,53 +639,33 @@ impl<const N: usize> Board<N> {
                 };
 
                 while row_i < max {
-                    let mut new_map_list = map_list;
-                    let mut new_moves = moves.clone();
-                    new_map_list[queen_i].row = row_i;
-
-                    rc[row_i as usize] += 1;
-                    dbc[(row_i + map_list[queen_i].col) as usize] += 1;
-                    dfc[N - 1 + (row_i - map_list[queen_i].col) as usize] += 1;
-
-                    let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
-
-                    rc[row_i as usize] -= 1;
-                    dbc[(row_i + map_list[queen_i].col) as usize] -= 1;
-                    dfc[N - 1 + (row_i - map_list[queen_i].col) as usize] -= 1;
-
-                    new_moves.push(Moves::Vertical(
-                        map_list[queen_i],
-                        Coord {
-                            row: row_i,
-                            col: map_list[queen_i].col,
-                        },
-                    ));
-
-                    row_i += 1;
-
-                    if estimated_cost == 0 {
-                        lowest_solve = new_total;
-                        lowest_moves = new_moves;
-
+                    let res = gen_nodes!(
+                        Vertical,
+                        capture(
+                            Coord {
+                                row: row_i,
+                                ..map_list[queen_i]
+                            },
+                            queen_i
+                        )
+                    );
+                    if res {
                         if ds.is_abort_on_found() {
                             break 'main;
                         } else {
                             continue 'main;
                         }
                     }
-
-                    ds.apply_node_heuristic(estimated_cost)
-                        .apply_path_cost(new_total as usize)
-                        .push((new_map_list, new_total, new_moves));
-                    #[cfg(debug_assertions)]
-                    {
-                        _nodes_generated += 1;
-                    }
+                    row_i += 1;
                 }
             }
 
+            // println!("{:?} mn:{min} mx:{max}", ds.0.peek().unwrap());
+            // let mut t = String::new();
+            // std::io::stdin().read_line(&mut t).unwrap();
+
             // Search the whole column.
-            for queen_i in 0..N {
+            /*for queen_i in (idx % N)..N {
                 let (mut cc, rc, mut dbc, mut dfc) = get_counts(map_list);
                 dbc[diag_rel_bot_left(map_list[queen_i])] -= 1;
                 dfc[diag_rel_bot_right(map_list[queen_i])] -= 1;
@@ -640,53 +691,74 @@ impl<const N: usize> Board<N> {
                 };
 
                 while col_i < max {
-                    let mut new_map_list = map_list;
-                    let mut new_moves = moves.clone();
-                    new_map_list[queen_i].col = col_i;
+                    // let mut new_map_list = map_list;
+                    // let mut new_moves = moves.clone();
+                    // new_map_list[queen_i].col = col_i;
+                    // let (cc, rc, dbc, dfc) = get_counts(new_map_list);
 
-                    cc[col_i as usize] += 1;
-                    dbc[(col_i + map_list[queen_i].row) as usize] += 1;
-                    dfc[N - 1 + (-col_i + map_list[queen_i].row) as usize] += 1;
+                    // // cc[col_i as usize] += 1;
+                    // // dbc[(col_i + map_list[queen_i].row) as usize] += 1;
+                    // // dfc[N - 1 + (-col_i + map_list[queen_i].row) as usize] += 1;
 
-                    let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
+                    // let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
 
-                    cc[col_i as usize] -= 1;
-                    dbc[(col_i + map_list[queen_i].row) as usize] -= 1;
-                    dfc[N - 1 + (-col_i + map_list[queen_i].row) as usize] -= 1;
+                    // // cc[col_i as usize] -= 1;
+                    // // dbc[(col_i + map_list[queen_i].row) as usize] -= 1;
+                    // // dfc[N - 1 + (-col_i + map_list[queen_i].row) as usize] -= 1;
 
-                    new_moves.push(Moves::Horizontal(
-                        map_list[queen_i],
-                        Coord {
-                            col: col_i,
-                            row: map_list[queen_i].row,
-                        },
-                    ));
+                    // new_moves.push(Moves::Horizontal(
+                    //     map_list[queen_i],
+                    //     Coord {
+                    //         col: col_i,
+                    //         row: map_list[queen_i].row,
+                    //     },
+                    // ));
 
-                    col_i += 1;
+                    // col_i += 1;
 
-                    if estimated_cost == 0 {
-                        lowest_solve = new_total;
-                        lowest_moves = new_moves;
+                    // if estimated_cost == 0 {
+                    //     lowest_total = new_total;
+                    //     lowest_moves = new_moves;
 
+                    //     if ds.is_abort_on_found() {
+                    //         break 'main;
+                    //     } else {
+                    //         println!("Found: {lowest_total} moves solution.");
+                    //         continue 'main;
+                    //     }
+                    // }
+
+                    // ds.apply_node_heuristic(estimated_cost)
+                    //     .apply_path_cost(new_total as usize)
+                    //     .push((new_map_list, new_total, new_moves));
+                    // #[cfg(debug_assertions)]
+                    // {
+                    //     _nodes_generated += 1;
+                    // }
+
+                    let res = gen_nodes!(
+                        Horizontal,
+                        capture(
+                            Coord {
+                                col: col_i,
+                                ..map_list[queen_i]
+                            },
+                            queen_i
+                        )
+                    );
+                    if res {
                         if ds.is_abort_on_found() {
                             break 'main;
                         } else {
                             continue 'main;
                         }
                     }
-
-                    ds.apply_node_heuristic(estimated_cost)
-                        .apply_path_cost(new_total as usize)
-                        .push((new_map_list, new_total, new_moves));
-                    #[cfg(debug_assertions)]
-                    {
-                        _nodes_generated += 1;
-                    }
+                    col_i += 1;
                 }
             }
 
             // Search the whole diagonal (Relative to a1, a.k.a. backward slash).
-            for queen_i in 0..N {
+            for queen_i in (idx % N)..N {
                 let cur_q = map_list[queen_i];
                 let (mut cc, mut rc, mut dbc, mut dfc) = get_counts(map_list);
 
@@ -721,50 +793,61 @@ impl<const N: usize> Board<N> {
                 }
 
                 while diag_i.row < max_row {
-                    let mut new_map_list = map_list;
-                    let mut new_moves = moves.clone();
-                    new_map_list[queen_i] = diag_i;
+                    // let mut new_map_list = map_list;
+                    // let mut new_moves = moves.clone();
+                    // new_map_list[queen_i] = diag_i;
 
-                    rc[diag_i.row as usize] += 1;
-                    cc[diag_i.col as usize] += 1;
-                    dbc[diag_rel_bot_left(diag_i)] += 1;
-                    dfc[diag_rel_bot_right(diag_i)] += 1;
+                    // rc[diag_i.row as usize] += 1;
+                    // cc[diag_i.col as usize] += 1;
+                    // dbc[diag_rel_bot_left(diag_i)] += 1;
+                    // dfc[diag_rel_bot_right(diag_i)] += 1;
 
-                    let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
+                    // let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
 
-                    rc[diag_i.row as usize] -= 1;
-                    cc[diag_i.col as usize] -= 1;
-                    dbc[diag_rel_bot_left(diag_i)] -= 1;
-                    dfc[diag_rel_bot_right(diag_i)] -= 1;
+                    // rc[diag_i.row as usize] -= 1;
+                    // cc[diag_i.col as usize] -= 1;
+                    // dbc[diag_rel_bot_left(diag_i)] -= 1;
+                    // dfc[diag_rel_bot_right(diag_i)] -= 1;
 
-                    new_moves.push(Moves::Diagonal(map_list[queen_i], diag_i));
+                    // new_moves.push(Moves::Diagonal(map_list[queen_i], diag_i));
 
-                    diag_i.row += 1;
-                    diag_i.col -= 1;
+                    // diag_i.row += 1;
+                    // diag_i.col -= 1;
 
-                    if estimated_cost == 0 {
-                        lowest_solve = new_total;
-                        lowest_moves = new_moves;
+                    // if estimated_cost == 0 {
+                    //     lowest_total = new_total;
+                    //     lowest_moves = new_moves;
 
+                    //     if ds.is_abort_on_found() {
+                    //         break 'main;
+                    //     } else {
+                    //         println!("Found: {lowest_total} moves solution.");
+                    //         continue 'main;
+                    //     }
+                    // }
+
+                    // ds.apply_node_heuristic(estimated_cost)
+                    //     .apply_path_cost(new_total as usize)
+                    //     .push((new_map_list, new_total, new_moves));
+                    // #[cfg(debug_assertions)]
+                    // {
+                    //     _nodes_generated += 1;
+                    // }
+                    let res = gen_nodes!(Diagonal, capture(diag_i, queen_i));
+                    if res {
                         if ds.is_abort_on_found() {
                             break 'main;
                         } else {
                             continue 'main;
                         }
                     }
-
-                    ds.apply_node_heuristic(estimated_cost)
-                        .apply_path_cost(new_total as usize)
-                        .push((new_map_list, new_total, new_moves));
-                    #[cfg(debug_assertions)]
-                    {
-                        _nodes_generated += 1;
-                    }
+                    diag_i.row += 1;
+                    diag_i.col -= 1;
                 }
             }
 
             // Search the whole diagonal (Relative to h1, a.k.a. forward slash).
-            for queen_i in 0..N {
+            for queen_i in (idx % N)..N {
                 let cur_q = map_list[queen_i];
                 let (mut cc, mut rc, mut dbc, mut dfc) = get_counts(map_list);
 
@@ -802,47 +885,58 @@ impl<const N: usize> Board<N> {
                 }
 
                 while diag_i.row < max_row {
-                    let mut new_map_list = map_list;
-                    let mut new_moves = moves.clone();
-                    new_map_list[queen_i] = diag_i;
+                    // let mut new_map_list = map_list;
+                    // let mut new_moves = moves.clone();
+                    // new_map_list[queen_i] = diag_i;
 
-                    rc[diag_i.row as usize] += 1;
-                    cc[diag_i.col as usize] += 1;
-                    dbc[diag_rel_bot_left(diag_i)] += 1;
-                    dfc[diag_rel_bot_right(diag_i)] += 1;
+                    // rc[diag_i.row as usize] += 1;
+                    // cc[diag_i.col as usize] += 1;
+                    // dbc[diag_rel_bot_left(diag_i)] += 1;
+                    // dfc[diag_rel_bot_right(diag_i)] += 1;
 
-                    let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
+                    // let estimated_cost = calculate_heuristic(cc, rc, dbc, dfc) as usize;
 
-                    rc[diag_i.row as usize] -= 1;
-                    cc[diag_i.col as usize] -= 1;
-                    dbc[diag_rel_bot_left(diag_i)] -= 1;
-                    dfc[diag_rel_bot_right(diag_i)] -= 1;
+                    // rc[diag_i.row as usize] -= 1;
+                    // cc[diag_i.col as usize] -= 1;
+                    // dbc[diag_rel_bot_left(diag_i)] -= 1;
+                    // dfc[diag_rel_bot_right(diag_i)] -= 1;
 
-                    new_moves.push(Moves::Diagonal(map_list[queen_i], diag_i));
+                    // new_moves.push(Moves::Diagonal(map_list[queen_i], diag_i));
 
-                    diag_i.row += 1;
-                    diag_i.col += 1;
+                    // diag_i.row += 1;
+                    // diag_i.col += 1;
 
-                    if estimated_cost == 0 {
-                        lowest_solve = new_total;
-                        lowest_moves = new_moves;
+                    // if estimated_cost == 0 {
+                    //     lowest_total = new_total;
+                    //     lowest_moves = new_moves;
 
+                    //     if ds.is_abort_on_found() {
+                    //         break 'main;
+                    //     } else {
+                    //         println!("Found: {lowest_total} moves solution.");
+                    //         continue 'main;
+                    //     }
+                    // }
+
+                    // ds.apply_node_heuristic(estimated_cost)
+                    //     .apply_path_cost(new_total as usize)
+                    //     .push((new_map_list, new_total, new_moves));
+                    // #[cfg(debug_assertions)]
+                    // {
+                    //     _nodes_generated += 1;
+                    // }
+                    let res = gen_nodes!(Diagonal, capture(diag_i, queen_i));
+                    if res {
                         if ds.is_abort_on_found() {
                             break 'main;
                         } else {
                             continue 'main;
                         }
                     }
-
-                    ds.apply_node_heuristic(estimated_cost)
-                        .apply_path_cost(new_total as usize)
-                        .push((new_map_list, new_total, new_moves));
-                    #[cfg(debug_assertions)]
-                    {
-                        _nodes_generated += 1;
-                    }
+                    diag_i.row += 1;
+                    diag_i.col += 1;
                 }
-            }
+            }*/
         }
 
         #[cfg(debug_assertions)]
