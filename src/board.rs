@@ -535,9 +535,9 @@ impl<const N: usize> Board<N> {
     pub fn solve_inner(&mut self, cutoff: u16) -> Vec<Moves> {
         use SearchStatus::*;
         // let mut ds = <search::DFS<_> as Search>::with_capacity(32); // Seems to only used 29 max.
-        let mut ds = <search::BFS<_> as Search>::with_capacity(30139); // Uses 30139 on ./src/states/init-hard2.
-                                                                       // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(30142); // Uses 30142 on ./src/states/init-hard.2
-                                                                       // let mut ds = <search::AStar<_> as Search>::with_capacity(7622); // Uses 7622 on ./src/states/init-hard.2
+        // let mut ds = <search::BFS<_> as Search>::with_capacity(32940); // On ./src/states/init-hard2.
+        // let mut ds = <search::Dijkstra<_> as Search>::with_capacity(32940); // On ./src/states/init-hard.2
+        let mut ds = <search::AStar<_> as Search>::with_capacity(17808); // On ./src/states/init-hard.2
 
         let queens = Self::get_queens_pos(self.init_state);
         let mut goals = Self::get_queens_pos(self.goal_state);
