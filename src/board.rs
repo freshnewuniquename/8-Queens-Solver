@@ -370,7 +370,7 @@ impl<const N: usize> Board<N> {
 
         while let Some(rank) = it.next() {
             let mut cur_file = 0u8;
-            let mut last_digit_index = 0;
+            let mut first_digit_index = 0;
             let mut in_digit_range = false;
 
             for (i, x) in rank.bytes().enumerate() {
@@ -379,12 +379,12 @@ impl<const N: usize> Board<N> {
                 if x.is_ascii_digit() {
                     if !in_digit_range {
                         in_digit_range = true;
-                        last_digit_index = i;
+                        first_digit_index = i;
                     }
                 } else if x == b'q' || x == b'Q' {
                     if in_digit_range {
-                        // Parse the number. Should be safe to call .unwrap().
-                        cur_file += rank[last_digit_index..i].parse::<u8>().unwrap();
+                        // Parses the number. Should be safe to call .unwrap().
+                        cur_file += rank[first_digit_index..i].parse::<u8>().unwrap();
                         in_digit_range = false;
                     }
 
@@ -406,7 +406,7 @@ impl<const N: usize> Board<N> {
             }
 
             if in_digit_range {
-                cur_file += rank[last_digit_index..].parse::<u8>().unwrap();
+                cur_file += rank[first_digit_index..].parse::<u8>().unwrap();
             }
 
             if cur_file != N as u8 {

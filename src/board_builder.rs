@@ -128,12 +128,8 @@ impl<'a, const N: usize> BoardBuilder<'a, N> {
                     return Err(format!("Malformed FEN input - {}", desc));
                 }
             } else {
-                if let Err(fen_desc) = Board::set(data, buf) {
-                    if let Err(csv_desc) = Board::set(data, buf) {
-                        return Err(format!(
-                            "Malformed input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
-                        ));
-                    }
+                if let Err(desc) = Board::set(data, buf) {
+                    return Err(desc);
                 }
             }
             Ok(())
