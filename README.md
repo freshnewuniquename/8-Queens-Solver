@@ -20,7 +20,7 @@ or
 $ eight_queens
 ```
 
-The solver currently supports the simple CSV of the coordinates of the eight squares, and the Forsyth–Edwards Notation (FEN) input format only.
+The solver currently supports the simple CSV of the coordinates of the eight squares, the Forsyth–Edwards Notation (FEN) input format, and an array representation of the queens's row for each column.
 
 A CSV input example of 8 queens being placed horizontally on the bottom-most row:
 ```
@@ -29,4 +29,8 @@ a1,b1,c1,d1,e1,f1,h1,g1
 A FEN input example of 8 queens being placed horizontally on the bottom-most row:
 ```
 8/8/8/8/8/8/8/QQQQQQQQ
+```
+An array input example of 8 queens being placed horizontally on the bottom-most row:
+```
+[1, 1, 1, 1, 1, 1, 1, 1]
 ```

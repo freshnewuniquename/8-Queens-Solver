@@ -276,9 +276,11 @@ impl<const N: usize> Board<N> {
     pub fn set(data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
         if let Err(fen_desc) = Board::set_with_fen(data, buf) {
             if let Err(csv_desc) = Board::set_with_csv(data, buf) {
-                return Err(format!(
-                    "Malformed init input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]"
-                ));
+                if let Err(arr_desc) = Board::set_with_array(data, buf) {
+                    return Err(format!(
+                        "Malformed init input data.\n[FEN: {fen_desc}]\n[CSV: {csv_desc}]\n[Array: {arr_desc}]"
+                    ));
+                }
             }
         }
         Ok(())
@@ -292,6 +294,8 @@ impl<const N: usize> Board<N> {
     pub unsafe fn fast_set(data: &str, buf: &mut [[u8; N]; N]) {
         if data.as_bytes()[2] == b',' {
             Board::fast_set_with_csv(data, buf);
+        } else if data.as_bytes()[0] == b'[' {
+            let _ = Board::set_with_array(data, buf);
         } else {
             Board::fast_set_with_fen(data, buf);
         }
@@ -454,6 +458,50 @@ impl<const N: usize> Board<N> {
                 raw_init_state = raw_init_state.add(n as usize);
             }
         }
+    }
+    /// Reads the provided array values, and input the queens into $buf.
+    ///
+    /// This function does not have an unsafe/fast counterpart.
+    pub fn set_with_array(array_data: &str, buf: &mut [[u8; N]; N]) -> Result<(), String> {
+        let array_data = array_data.trim();
+
+        if !array_data.starts_with("[") || !array_data.ends_with("]") {
+            return Err("Mismatched array delimeter.".into());
+        }
+        let array_data = array_data
+            .strip_prefix("[")
+            .unwrap()
+            .strip_suffix("]")
+            .unwrap();
+
+        let values = array_data.split(',');
+
+        let mut cur_col = 0;
+        for (idx, val) in values.enumerate() {
+            if idx == N {
+                return Err(format!("Expected {N} values, but found more."));
+            }
+
+            let val = val.trim();
+
+            let Ok(row) = val.parse::<usize>() else {
+                return Err(format!("Unexpected non-digit token while parsing \"{}\".", val));
+            };
+
+            if 0 < row && row <= N {
+                buf[row - 1][cur_col] = 1;
+                cur_col += 1;
+            } else {
+                return Err(format!(
+                    "Invalid row number, '{row}', given while the range of rows are [1, {N}]."
+                ));
+            }
+        }
+
+        if cur_col != N {
+            return Err(format!("Expected {N} values, but found {}.", cur_col));
+        }
+        Ok(())
     }
     /// Moves the selected chess piece to the given location, from the given chess coordinates notations.
     ///
