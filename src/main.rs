@@ -254,5 +254,10 @@ fn main() {
                 elapsed.as_micros()
             );
         }
+
+        if cfg!(target_os = "windows") {
+            println!("Press <Enter> to continue.");
+            std::io::stdin().read_line(&mut String::new()).unwrap();
+        }
     }
 }
