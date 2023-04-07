@@ -641,17 +641,16 @@ impl<const N: usize> Board<N> {
 
             let c = col_count
                 .into_iter()
-                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x * (x - 1) });
             let r = row_count
                 .into_iter()
-                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x * (x - 1) });
             let db = diag_backslash_count
                 .into_iter()
-                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x * (x - 1) });
             let df = diag_fwdslash_count
                 .into_iter()
-                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x - 1 });
-
+                .fold(0, |acc, x| acc + if x <= 1 { 0 } else { x * (x - 1) });
             c + r + db + df
         };
 
@@ -778,8 +777,18 @@ impl<const N: usize> Board<N> {
                         continue;
                     }
 
+                    // h(n)       ≤ c(n,a,n') + h(n')
+                    // h(n)-h(n') ≤ c(n,a,n')
+                    //
+                    // n: current node, n': next node, a: action
+                    //
+                    // To make sure a heurisitic is consistent (if it's consistent then it's admissible), each
+                    // heuristic delta after an action should be smaller than or equal to the cost delta.
+                    //
+                    // So by increasing the cost by a factor of 8, each cost will be greater than equal to the
+                    // the highest heuristic delta.
                     let estimated_cost = if ds.is_informed_search() {
-                        calculate_heuristic(queens_new) + moves_new.len() * 2
+                        calculate_heuristic(queens_new) + moves_new.len() * 7 // Another factor is added through .apply_path_cost().
                     } else {
                         0
                     };

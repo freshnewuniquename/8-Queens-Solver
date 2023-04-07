@@ -4,12 +4,12 @@ This project is created solely for a semester project of using search algorithms
 **Note:** _This program is currently in a working state, but has yet been polished, please use at your own risk._
 
 ## Implementation
-The search algorithm used in this implementation is A*, an informed search that can be implemented using a priority queue. The heuristic function of the A* algorithm is calculated with the number of attacks that can be made, summed by the number of total moves made, up to that point.
+The search algorithm used in this implementation is A*, an informed search that can be implemented using a priority queue. The heuristic function of the A* algorithm is calculated with the number of attacks that can be made, summed by the number of total moves made up to that point, along with some adjustment to make the heuristic admissible and consistent.
 
 This 8-Queens solver uses the complete-state formulation, in which the eight pieces are already placed on the board. The solver will try to move the queens to match with the end state inputted. On each action, the solver will move only one of the pieces according to the queen piece movement.
 
 ## Usage
-The solver will receive an initial state, and an end state, by reading the files from the given file locations through CLI, or will fallback to the default ./src/states/init, and ./src/states/goal files if not provided. The first argument in the CLI will be used for the file location of the init state, and the second argument will be used for the file location of the goal state.
+The solver will receive an initial state and an end state by reading the files from the given file locations through CLI, or will fallback to the default ./src/states/init, and ./src/states/goal files if not provided. The first argument in the CLI will be used for the file location of the init state, and the second argument will be used for the file location of the goal state.
 
 An example for the basic usage of the CLI program.
 ```
