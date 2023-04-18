@@ -97,6 +97,7 @@ fn main() {
     let mut init_range = (0, 0);
     let mut goal_range = (0, 0);
     let mut files_read_count = 0;
+    let mut files_tried_count = 0;
     let mut read = 0;
     let mut quiet = false;
     let mut benchmark = cfg!(debug_assertions);
@@ -143,6 +144,8 @@ fn main() {
                 continue;
             }
 
+            files_tried_count += 1;
+
             let read_new = read + read_file_to(option.into(), &mut file_buffer[read..]);
             if read_new == read {
                 continue;
@@ -168,18 +171,29 @@ fn main() {
         return;
     }
 
-    // Apply default files.
-    let init = if init_range == (0, 0) {
+    if files_tried_count == 0 {
         let init = read_file_to("init".into(), &mut file_buffer);
-        init_range = (0, init);
-        init
-    } else {
-        0
-    };
+        if init != 0 {
+            init_range = (0, init);
+            files_read_count += 1;
+            files_tried_count += 1;
+        }
+    }
 
-    if goal_range == (0, 0) && N != 8 {
-        let goal = read_file_to("goal".into(), &mut file_buffer[init..]);
-        goal_range = (init, goal);
+    if files_tried_count == 1 {
+        let goal = read_file_to("goal".into(), &mut file_buffer[init_range.1..]);
+        if goal != 0 {
+            goal_range = (init_range.1, goal);
+            files_read_count += 1;
+            files_tried_count += 1;
+        }
+    }
+
+    // Panics if found cannot be read.
+    if init_range == (0, 0) {
+        panic!("Init file not found or cannot be read.");
+    } else if goal_range == (0, 0) {
+        panic!("Goal file not found or cannot be read.");
     }
 
     // Convert bytes to strings.
