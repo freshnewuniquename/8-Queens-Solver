@@ -53,7 +53,6 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
                 let src_path = Path::new("./src/states").join(file_name);
                 let src_path = src_path.to_string_lossy();
 
-                eprintln!("Searching for \"{src_path}\".");
                 let read_len = read_file_to(src_path.to_string(), data);
 
                 if read_len != 0 {
@@ -64,7 +63,6 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
                 let src_path = Path::new("./states").join(file_name);
                 let src_path = src_path.to_string_lossy();
 
-                eprintln!("Searching for \"{src_path}\".");
                 let read_len = read_file_to(src_path.to_string(), data);
 
                 if read_len != 0 {
@@ -75,7 +73,6 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
                 let src_path = Path::new("../../src/states").join(file_name);
                 let src_path = src_path.to_string_lossy();
 
-                eprintln!("Searching for \"{src_path}\".");
                 read_file_to(src_path.to_string(), data)
             } else {
                 0
