@@ -82,6 +82,8 @@ fn read_file_to(file_path: String, data: &mut [u8]) -> usize {
 }
 
 fn main() {
+    let execution_time = std::time::Instant::now();
+
     const N: usize = 8;
     let mut cli_options = env::args_os();
     let mut file_buffer = [0; 128 * 128]; // Supports up to 128-Queens. But only 26 addressable squares using CSV.
@@ -269,4 +271,11 @@ fn main() {
             std::io::stdin().read_line(&mut String::new()).unwrap();
         }
     }
+
+    let elapsed = execution_time.elapsed();
+    println!(
+        "\nTime used for program execution: {}ms ({}μs)",
+        elapsed.as_millis(),
+        elapsed.as_micros()
+    );
 }
