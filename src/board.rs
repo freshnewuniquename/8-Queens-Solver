@@ -605,12 +605,8 @@ impl<const N: usize> Board<N> {
         // Usage analysis. Will only be used in debug mode.
         #[allow(unused_mut)]
         let mut _nodes_generated = 1; // Including the root node.
-        let mut _duplicating_nodes_found = 0;
         let mut _explored = 0;
-        let mut _pruned = 0;
         let mut _max_frontier_len = 0;
-        let mut _stuck_nodes = 0;
-        let mut _stuck_node_loop_arounds = 0;
 
         let mut goal_idx = 0;
         while goal_idx < N && goals[goal_idx].row == -1 {
@@ -657,12 +653,12 @@ impl<const N: usize> Board<N> {
         // TODO: Seems to have a lot of duplicates...
 
         ds.push((queens, queen_i_goal, goal_idx, Vec::with_capacity(N), Ok));
+        let _item_size = std::mem::size_of_val(&ds.next().unwrap());
 
         let mut lowest_moves = cutoff;
         let mut lowest_moves_list = Vec::new();
 
         while let Some((queens, queen_i_goal, mut goal_idx, moves, status)) = ds.pop_next() {
-            #[cfg(debug_assertions)]
             {
                 _explored += 1;
             }
@@ -697,11 +693,9 @@ impl<const N: usize> Board<N> {
             if goal_idx == N {
                 match status {
                     OnHold(idx) => {
-                        #[cfg(debug_assertions)]
                         {
                             // Will insert a dummy node to do the loop around.
                             _explored -= 1;
-                            _stuck_node_loop_arounds += 1;
                         }
                         ds.moves_hint(0)
                             .apply_node_heuristic(0)
@@ -749,10 +743,6 @@ impl<const N: usize> Board<N> {
                             status_new = RetryingHold(idx + 1);
                         }
                     } else {
-                        #[cfg(debug_assertions)]
-                        {
-                            _stuck_nodes += 1;
-                        }
                         status_new = match status {
                             Ok => {
                                 queens_new.swap(i, N - 1);
@@ -766,15 +756,6 @@ impl<const N: usize> Board<N> {
                             }
                             _ => todo!("Should not be happening if N = 8... I think."),
                         };
-                    }
-
-                    if moves_new.len() as u16 >= lowest_moves {
-                        // Pruning.
-                        #[cfg(debug_assertions)]
-                        {
-                            _pruned += 1;
-                        }
-                        continue;
                     }
 
                     // h(n)       ≤ c(n,a,n') + h(n')
@@ -804,32 +785,26 @@ impl<const N: usize> Board<N> {
                             status_new,
                         ));
 
-                    #[cfg(debug_assertions)]
                     {
                         _nodes_generated += 1;
                     }
                 }
             }
-            #[cfg(debug_assertions)]
-            {
-                _max_frontier_len = _max_frontier_len.max(ds.len());
+            if ds.len() > _max_frontier_len {
+                _max_frontier_len = ds.len();
             }
         }
 
-        #[cfg(debug_assertions)]
         unsafe {
             // Not adding .clear() to the trait, so this is done manually.
-            ds = Search::new();
-
+            let _internal_allocated = _item_size * _max_frontier_len;
+            let _internal_allocated =
+                format!("{:.3}MiB", _internal_allocated as f64 / 1024. / 1024.);
             dbg!(
-                ds,
                 _nodes_generated,
                 _explored,
-                _pruned,
                 _max_frontier_len,
-                _stuck_nodes,
-                _stuck_node_loop_arounds,
-                μs_used_searching_is_blocked,
+                _internal_allocated,
             );
         }
         lowest_moves_list

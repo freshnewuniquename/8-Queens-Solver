@@ -272,10 +272,16 @@ fn main() {
         }
     }
 
+    if moves.len() > 1 {
+        println!("Solution found in {} moves.", moves.len());
+    } else {
+        println!("Solution found in {} move.", moves.len());
+    }
+
     let elapsed = execution_time.elapsed();
     println!(
-        "\nTime used for program execution: {}ms ({}μs)",
-        elapsed.as_millis(),
+        "Time taken: {:.6} seconds ({}μs)",
+        elapsed.as_micros() as f64 / 1000. / 1000.,
         elapsed.as_micros()
     );
 }
