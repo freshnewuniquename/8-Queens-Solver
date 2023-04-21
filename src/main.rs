@@ -273,9 +273,9 @@ fn main() {
     }
 
     if moves.len() > 1 {
-        println!("Solution found in {} moves.", moves.len());
+        println!("A solution with {} moves found.", moves.len());
     } else {
-        println!("Solution found in {} move.", moves.len());
+        println!("A solution with {} move found.", moves.len());
     }
 
     let elapsed = execution_time.elapsed();
