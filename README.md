@@ -1,7 +1,5 @@
 # 8-Queens Goal Retrace
-This project is created solely for a semester project of using search algorithms to allow an A.I. to solve the puzzle.
-
-**Note:** _This program is currently in a working state, but has yet been polished, please use at your own risk._
+This project is created solely for a semester project of using search algorithms to allow an A.I. to solve the 8 queens puzzle with the fewest number of moves with a pre-determined solution.
 
 ## Implementation
 The search algorithm used in this implementation is A*, an informed search that can be implemented using a priority queue. The heuristic function of the A* algorithm is calculated with the number of attacks that can be made, summed by the number of total moves made up to that point, along with some adjustment to make the heuristic admissible and consistent.
